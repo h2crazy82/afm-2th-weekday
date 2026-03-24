@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apple 타이포그래피 슬라이드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
+
+    * {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+                   'Noto Sans KR', 'Helvetica Neue', Arial, sans-serif;
+      background: #000000;
+      color: #f5f5f7;
+      overflow: hidden;
+    }
+
+    .slide-enter {
+      animation: slideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    .slide-exit-left {
+      animation: slideOutLeft 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    .slide-exit-right {
+      animation: slideOutRight 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: scale(0.96) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes slideOutLeft {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(-80px); }
+    }
+
+    @keyframes slideOutRight {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(80px); }
+    }
+
+    .heading-glow {
+      text-shadow: 0 0 80px rgba(255, 255, 255, 0.08);
+    }
+
+    .progress-bar {
+      transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .spec-badge {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    .nav-dot {
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .arrow-btn {
+      transition: all 0.3s ease;
+    }
+
+    .arrow-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .arrow-btn:active {
+      transform: scale(0.92);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    // ========================================
+    // React Hooks
+    // ========================================
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ========================================
+    // 🎨 Design System Components
+    // ========================================
+
+    function SpecBadge({ label, value }) {
+      return (
+        <div className="spec-badge rounded-xl px-4 py-3 text-center min-w-[120px]">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">{label}</div>
+          <div className="text-sm font-medium text-gray-300">{value}</div>
+        </div>
+      );
+    }
+
+    function NavDot({ active, onClick, index }) {
+      return (
+        <button
+          onClick={onClick}
+          className={`nav-dot rounded-full ${active ? 'w-8 h-2 bg-white' : 'w-2 h-2 bg-gray-600 hover:bg-gray-400'}`}
+          aria-label={`슬라이드 ${index + 1}`}
+        />
+      );
+    }
+
+    function ArrowButton({ direction, onClick, disabled }) {
+      return (
+        <button
+          onClick={onClick}
+          disabled={disabled}
+          className={`arrow-btn w-12 h-12 rounded-full flex items-center justify-center border border-white/10 ${disabled ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+          aria-label={direction === 'left' ? '이전 슬라이드' : '다음 슬라이드'}
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            {direction === 'left'
+              ? <polyline points="12,4 6,10 12,16" />
+              : <polyline points="8,4 14,10 8,16" />
+            }
+          </svg>
+        </button>
+      );
+    }
+
+    // ========================================
+    // 📄 Slide Component
+    // ========================================
+
+    function Slide({ heading, animClass }) {
+      return (
+        <div className={`absolute inset-0 flex flex-col items-center justify-center px-6 ${animClass}`}>
+          {/* Background image */}
+          <div
+            className="absolute inset-0 bg-center bg-cover bg-no-repeat"
+            style={{
+              backgroundImage: `url(${heading.image})`,
+              opacity: 0.35,
+              filter: 'blur(1px)',
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30" />
+
+          {/* Content */}
+          <div className="relative z-10 flex flex-col items-center">
+            {/* Level pill */}
+            <div className="spec-badge rounded-full px-5 py-1.5 mb-8">
+              <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                {heading.level} — {heading.label}
+              </span>
+            </div>
+
+            {/* Image preview */}
+            <div className="mb-8 rounded-2xl overflow-hidden shadow-2xl shadow-white/5 border border-white/10" style={{ maxWidth: '480px', maxHeight: '270px' }}>
+              <img src={heading.image} alt={heading.text} className="w-full h-full object-cover" />
+            </div>
+
+            {/* Heading */}
+            <div
+              className={`heading-glow text-center max-w-4xl ${heading.headingClass}`}
+              style={heading.style}
+            >
+              {heading.text}
+            </div>
+
+            {/* Description */}
+            <p className="mt-4 text-center text-base md:text-lg max-w-xl leading-relaxed text-gray-400">
+              {heading.description}
+            </p>
+
+            {/* Specs */}
+            <div className="flex flex-wrap justify-center gap-3 mt-8">
+              <SpecBadge label="Size" value={heading.specs.size} />
+              <SpecBadge label="Weight" value={heading.specs.weight} />
+              <SpecBadge label="Tracking" value={heading.specs.spacing} />
+              <SpecBadge label="Line Height" value={heading.specs.lineHeight} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🚀 App Component
+    // ========================================
+
+    function App() {
+      const headings = [
+        {
+          level: 'H1',
+          label: '대제목',
+          text: '혁신을 경험하다',
+          description: '히어로 영역에서 사용되는 가장 큰 제목입니다. 강렬한 첫인상을 전달합니다.',
+          headingClass: 'text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-none',
+          specs: { size: '48–96px', weight: '700 Bold', spacing: '-0.04em', lineHeight: '1.0' },
+          style: { letterSpacing: '-0.04em' },
+          image: 'images/slide-h1.png'
+        },
+        {
+          level: 'H2',
+          label: '섹션 제목',
+          text: '모든 것이 달라집니다',
+          description: '주요 섹션의 시작을 알리는 제목입니다. 페이지 내 큰 흐름을 구분합니다.',
+          headingClass: 'text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-tight',
+          specs: { size: '36–64px', weight: '700 Bold', spacing: '-0.03em', lineHeight: '1.05' },
+          style: { letterSpacing: '-0.03em' },
+          image: 'images/slide-h2.png'
+        },
+        {
+          level: 'H3',
+          label: '기능 제목',
+          text: '놀라운 성능, 하루 종일\n지속되는 배터리',
+          description: '기능이나 특성을 소개하는 제목입니다. 시각적 강조와 정보 전달의 균형을 맞춥니다.',
+          headingClass: 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight leading-snug',
+          specs: { size: '30–48px', weight: '600 Semi', spacing: '-0.02em', lineHeight: '1.1' },
+          style: { letterSpacing: '-0.02em' },
+          image: 'images/slide-h3.png'
+        },
+        {
+          level: 'H4',
+          label: '소제목',
+          text: '프로를 위한 프로세서',
+          description: '섹션 내 하위 주제를 구분하는 제목입니다. 콘텐츠의 구조를 명확하게 합니다.',
+          headingClass: 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-snug',
+          specs: { size: '24–36px', weight: '600 Semi', spacing: '-0.015em', lineHeight: '1.15' },
+          style: { letterSpacing: '-0.015em' },
+          image: 'images/slide-h4.png'
+        },
+        {
+          level: 'H5',
+          label: '본문 제목',
+          text: '더 넓어진 디스플레이로\n몰입감 있는 경험',
+          description: '본문 영역 내에서 소주제를 나타냅니다. 읽기 흐름을 자연스럽게 유도합니다.',
+          headingClass: 'text-xl sm:text-2xl md:text-3xl lg:text-4xl font-semibold leading-normal',
+          specs: { size: '20–30px', weight: '600 Semi', spacing: '-0.01em', lineHeight: '1.2' },
+          style: { letterSpacing: '-0.01em' },
+          image: 'images/slide-h5.png'
+        },
+        {
+          level: 'H6',
+          label: '캡션 제목',
+          text: '환경을 위한 Apple의 약속',
+          description: '보조 정보나 캡션에 사용되는 가장 작은 제목입니다.',
+          headingClass: 'text-lg sm:text-xl md:text-2xl lg:text-3xl font-medium leading-normal',
+          specs: { size: '18–24px', weight: '500 Medium', spacing: '-0.005em', lineHeight: '1.25' },
+          style: { letterSpacing: '-0.005em' },
+          image: 'images/slide-h6.png'
+        }
+      ];
+
+      const [current, setCurrent] = useState(0);
+      const [animClass, setAnimClass] = useState('slide-enter');
+      const isAnimating = useRef(false);
+
+      const goTo = useCallback((index, direction) => {
+        if (isAnimating.current || index === current || index < 0 || index >= headings.length) return;
+        isAnimating.current = true;
+
+        setAnimClass(direction === 'left' ? 'slide-exit-left' : 'slide-exit-right');
+
+        setTimeout(() => {
+          setCurrent(index);
+          setAnimClass('slide-enter');
+          setTimeout(() => { isAnimating.current = false; }, 600);
+        }, 400);
+      }, [current, headings.length]);
+
+      const goNext = useCallback(() => goTo(current + 1, 'left'), [current, goTo]);
+      const goPrev = useCallback(() => goTo(current - 1, 'right'), [current, goTo]);
+
+      useEffect(() => {
+        const handleKey = (e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goNext(); }
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goPrev(); }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+      }, [goNext, goPrev]);
+
+      const progress = ((current + 1) / headings.length) * 100;
+
+      return (
+        <div className="h-screen w-screen relative select-none">
+          {/* Progress bar */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/5 z-50">
+            <div className="progress-bar h-full bg-white/30" style={{ width: `${progress}%` }} />
+          </div>
+
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-6 py-5">
+            <span className="text-xs font-semibold tracking-widest uppercase text-gray-500">
+              타이포그래피 시스템
+            </span>
+            <span className="text-xs font-medium text-gray-600">
+              {current + 1} / {headings.length}
+            </span>
+          </div>
+
+          {/* Slide */}
+          <Slide heading={headings[current]} animClass={animClass} />
+
+          {/* Bottom controls */}
+          <div className="absolute bottom-0 left-0 right-0 z-40 px-6 py-6 flex items-center justify-between">
+            {/* Arrows */}
+            <div className="flex gap-3">
+              <ArrowButton direction="left" onClick={goPrev} disabled={current === 0} />
+              <ArrowButton direction="right" onClick={goNext} disabled={current === headings.length - 1} />
+            </div>
+
+            {/* Dots */}
+            <div className="flex items-center gap-2">
+              {headings.map((_, i) => (
+                <NavDot key={i} index={i} active={i === current} onClick={() => goTo(i, i > current ? 'left' : 'right')} />
+              ))}
+            </div>
+
+            {/* Keyboard hint */}
+            <div className="flex items-center gap-2 text-gray-600">
+              <kbd className="spec-badge rounded-md px-2 py-1 text-xs">←</kbd>
+              <kbd className="spec-badge rounded-md px-2 py-1 text-xs">→</kbd>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // Rendering
+    // ========================================
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

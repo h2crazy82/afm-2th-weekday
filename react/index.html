@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>토스 스타일 헤더 컬렉션</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            toss: {
+              blue: '#3182f6',
+              'blue-dark': '#1b6ce5',
+              dark: '#191f28',
+              gray: '#4e5968',
+              'gray-light': '#8b95a1',
+              'gray-lighter': '#b0b8c1',
+              bg: '#f4f4f4',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes dance {
+      0% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-16px) rotate(10deg); }
+      100% { transform: translateY(0) rotate(-10deg); }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+        'Pretendard', 'Segoe UI', Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+    // ========================================
+    // 🎨 Design System Components
+    // ========================================
+
+    function Badge({ children, className = '' }) {
+      return (
+        <span className={`inline-block bg-toss-blue/10 text-toss-blue text-xs font-bold px-3 py-1 rounded-full ${className}`}>
+          {children}
+        </span>
+      );
+    }
+
+    function Card({ children, className = '' }) {
+      return (
+        <div className={`bg-white rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] ${className}`}>
+          {children}
+        </div>
+      );
+    }
+
+    function DancingText({ children, className = '' }) {
+      const [dancing, setDancing] = useState(false);
+      const timerRef = useRef(null);
+
+      const handleClick = () => {
+        if (dancing) return;
+        setDancing(true);
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setDancing(false), 3000);
+      };
+
+      const chars = String(children).split('');
+
+      return (
+        <span className={`cursor-pointer inline-block ${className}`} onClick={handleClick}>
+          {chars.map((char, i) => (
+            <span
+              key={i}
+              className="inline-block"
+              style={dancing ? {
+                animation: `dance 0.5s ease ${i * 0.1}s infinite alternate`,
+              } : {}}
+            >
+              {char}
+            </span>
+          ))}
+        </span>
+      );
+    }
+
+    // ========================================
+    // 📄 Header Slide Component
+    // ========================================
+
+    function HeaderSlide({ tag, size, weight, sample, description, image, isActive }) {
+      const headerStyles = {
+        h1: 'text-5xl font-extrabold tracking-tighter',
+        h2: 'text-4xl font-bold tracking-tight',
+        h3: 'text-3xl font-bold tracking-tight',
+        h4: 'text-2xl font-semibold',
+        h5: 'text-xl font-semibold',
+        h6: 'text-lg font-medium',
+      };
+
+      return (
+        <div
+          className={`transition-all duration-500 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 absolute pointer-events-none'}`}
+        >
+          <Card className="min-h-[360px] overflow-hidden">
+            <div className="flex flex-col md:flex-row gap-6 items-center">
+              {/* 이미지 */}
+              <div className="w-full md:w-2/5 flex-shrink-0">
+                <img
+                  src={image}
+                  alt={sample}
+                  className="w-full h-48 md:h-56 object-cover rounded-xl"
+                />
+              </div>
+
+              {/* 텍스트 */}
+              <div className="flex-1 w-full">
+                <div className="flex items-start justify-between mb-5">
+                  <Badge>{`<${tag}>`}</Badge>
+                  <div className="text-right">
+                    <p className="text-xs text-toss-gray-light">{size}</p>
+                    <p className="text-xs text-toss-gray-light">{weight}</p>
+                  </div>
+                </div>
+
+                <div className="mb-5">
+                  <p className={`text-toss-dark leading-snug ${headerStyles[tag]}`}>
+                    {sample}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <p className="text-sm text-toss-gray-light leading-relaxed">{description}</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🎛️ Slider Component
+    // ========================================
+
+    function HeaderSlider({ headers }) {
+      const [current, setCurrent] = useState(0);
+      const total = headers.length;
+
+      const prev = useCallback(() => setCurrent((c) => (c - 1 + total) % total), [total]);
+      const next = useCallback(() => setCurrent((c) => (c + 1) % total), [total]);
+
+      useEffect(() => {
+        const timer = setInterval(next, 4000);
+        return () => clearInterval(timer);
+      }, [next]);
+
+      useEffect(() => {
+        const handleKey = (e) => {
+          if (e.key === 'ArrowLeft') prev();
+          if (e.key === 'ArrowRight') next();
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+      }, [prev, next]);
+
+      return (
+        <div>
+          <div className="relative">
+            {headers.map((h, i) => (
+              <HeaderSlide key={h.tag} {...h} isActive={i === current} />
+            ))}
+          </div>
+
+          {/* 컨트롤 */}
+          <div className="flex items-center justify-center gap-6 mt-8">
+            <button
+              onClick={prev}
+              className="w-10 h-10 rounded-full bg-white text-toss-dark flex items-center justify-center text-lg font-bold shadow hover:bg-toss-blue hover:text-white transition-all duration-200"
+              aria-label="이전"
+            >
+              &larr;
+            </button>
+
+            {/* 도트 인디케이터 */}
+            <div className="flex gap-2">
+              {headers.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrent(i)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === current ? 'bg-toss-blue w-6' : 'bg-gray-300'}`}
+                  aria-label={`슬라이드 ${i + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={next}
+              className="w-10 h-10 rounded-full bg-white text-toss-dark flex items-center justify-center text-lg font-bold shadow hover:bg-toss-blue hover:text-white transition-all duration-200"
+              aria-label="다음"
+            >
+              &rarr;
+            </button>
+          </div>
+
+          <p className="text-center text-sm text-toss-gray-light mt-4">
+            {current + 1} / {total}
+          </p>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🚀 App Component
+    // ========================================
+
+    function App() {
+      const headers = [
+        {
+          tag: 'h1',
+          size: '48px (text-5xl)',
+          weight: 'Extra Bold (800)',
+          sample: '금융이 쉬워진다',
+          description: '페이지 최상단 히어로 타이틀에 사용합니다. 한 페이지에 하나만 사용하세요.',
+          image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop',
+        },
+        {
+          tag: 'h2',
+          size: '36px (text-4xl)',
+          weight: 'Bold (700)',
+          sample: '누구나 쉽게, 매일 쓰는 금융',
+          description: '주요 섹션의 제목으로 사용합니다. 콘텐츠 영역의 큰 구분에 적합합니다.',
+          image: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=600&h=400&fit=crop',
+        },
+        {
+          tag: 'h3',
+          size: '30px (text-3xl)',
+          weight: 'Bold (700)',
+          sample: '내 자산을 한눈에 확인하세요',
+          description: '섹션 내 하위 제목으로 사용합니다. 카드 그룹이나 기능 소개에 적합합니다.',
+          image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop',
+        },
+        {
+          tag: 'h4',
+          size: '24px (text-2xl)',
+          weight: 'Semi Bold (600)',
+          sample: '이번 달 소비 리포트',
+          description: '카드 제목이나 중요 항목의 라벨로 사용합니다.',
+          image: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=400&fit=crop',
+        },
+        {
+          tag: 'h5',
+          size: '20px (text-xl)',
+          weight: 'Semi Bold (600)',
+          sample: '자주 쓰는 계좌',
+          description: '리스트 헤더나 소규모 컴포넌트의 타이틀로 사용합니다.',
+          image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&h=400&fit=crop',
+        },
+        {
+          tag: 'h6',
+          size: '18px (text-lg)',
+          weight: 'Medium (500)',
+          sample: '최근 거래 내역',
+          description: '가장 작은 헤딩입니다. 보조 정보의 소제목으로 사용합니다.',
+          image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=400&fit=crop',
+        },
+      ];
+
+      return (
+        <div className="min-h-screen bg-toss-bg">
+          {/* 네비게이션 */}
+          <nav className="fixed top-0 left-0 right-0 bg-white/85 backdrop-blur-xl border-b border-black/5 px-6 h-14 flex items-center justify-between z-50">
+            <span className="text-xl font-bold text-toss-blue">Typography</span>
+            <span className="text-sm text-toss-gray-light">토스 스타일 헤더 가이드</span>
+          </nav>
+
+          {/* 히어로 */}
+          <section className="pt-32 pb-16 px-6 text-center bg-gradient-to-b from-white to-toss-bg">
+            <h1 className="text-5xl max-sm:text-3xl font-extrabold tracking-tighter text-toss-dark mb-5 leading-tight">
+              헤더 타이포그래피<br />
+              <DancingText className="text-toss-blue">스타일 가이드</DancingText>
+            </h1>
+            <p className="text-lg max-sm:text-base text-toss-gray-light max-w-lg mx-auto leading-relaxed">
+              토스 디자인 시스템의 헤더 스타일을 한눈에 확인하세요.<br />
+              h1부터 h6까지 각 레벨별 용도와 스펙을 정리했습니다.
+            </p>
+          </section>
+
+          {/* 헤더 슬라이드 */}
+          <section className="max-w-3xl mx-auto px-6 pb-24">
+            <HeaderSlider headers={headers} />
+          </section>
+
+          {/* 푸터 */}
+          <footer className="bg-toss-dark text-toss-gray-light text-center py-10 px-6 text-sm leading-loose">
+            <p>&copy; 2026 Typography Guide. 토스 스타일 참고용.</p>
+          </footer>
+        </div>
+      );
+    }
+
+    // ========================================
+    // Rendering
+    // ========================================
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

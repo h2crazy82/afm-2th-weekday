@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>나이 계산기 - 한국 나이 총정리</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
+    body { font-family: 'Noto Sans KR', sans-serif; }
+    .fade-in { animation: fadeIn 0.5s ease-in-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .bounce { animation: bounce 2s ease infinite; }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .slide-up { animation: slideUp 0.4s ease-out; }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* 스크롤바 */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ========================================
+    // 1. React Hooks Destructuring
+    // ========================================
+    const { useState, useMemo, useCallback, useEffect } = React;
+
+    // ========================================
+    // 2. Design System Components
+    // ========================================
+
+    const Button = ({ children, onClick, variant = "primary", disabled = false, className = "" }) => {
+      const base = "px-5 py-3 rounded-xl font-semibold transition-all duration-200 focus:outline-none focus:ring-4 disabled:opacity-40 disabled:cursor-not-allowed";
+      const variants = {
+        primary: "bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700 focus:ring-purple-300 shadow-lg hover:shadow-xl active:scale-95",
+        secondary: "bg-white text-purple-600 border-2 border-purple-200 hover:bg-purple-50 focus:ring-purple-200 active:scale-95",
+      };
+      return (
+        <button onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${className}`}>
+          {children}
+        </button>
+      );
+    };
+
+    const Input = ({ label, value, onChange, placeholder = "", min, max, error }) => (
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          min={min}
+          max={max}
+          className={`w-full px-4 py-3 rounded-xl border-2 text-center text-lg font-bold transition-all duration-200 focus:outline-none focus:ring-4 ${
+            error
+              ? "border-red-300 focus:border-red-500 focus:ring-red-200 bg-red-50"
+              : "border-purple-200 focus:border-purple-500 focus:ring-purple-200 bg-white"
+          }`}
+        />
+        {error && <p className="text-red-500 text-xs mt-0.5">{error}</p>}
+      </div>
+    );
+
+    const Card = ({ children, className = "" }) => (
+      <div className={`bg-white rounded-2xl shadow-lg border border-gray-100 p-5 ${className}`}>
+        {children}
+      </div>
+    );
+
+    const SectionTitle = ({ icon, title, subtitle }) => (
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xl">{icon}</span>
+        <div>
+          <h2 className="text-base font-bold text-gray-800">{title}</h2>
+          {subtitle && <p className="text-xs text-gray-400">{subtitle}</p>}
+        </div>
+      </div>
+    );
+
+    const InfoRow = ({ label, value, sub, highlight, icon }) => (
+      <div className={`flex justify-between items-center px-4 py-2.5 rounded-xl ${highlight ? "bg-gradient-to-r from-purple-50 to-pink-50" : "bg-gray-50"}`}>
+        <span className="text-gray-600 text-sm flex items-center gap-1.5">
+          {icon && <span>{icon}</span>}
+          {label}
+        </span>
+        <div className="text-right">
+          <span className={`font-bold ${highlight ? "text-purple-700" : "text-gray-800"}`}>{value}</span>
+          {sub && <span className="text-xs text-gray-400 ml-1">{sub}</span>}
+        </div>
+      </div>
+    );
+
+    const AgeBadge = ({ label, age, unit = "세", color = "purple", description }) => (
+      <div className={`flex flex-col items-center p-4 rounded-2xl bg-gradient-to-b from-${color}-50 to-${color}-100 border border-${color}-200`}>
+        <span className="text-xs font-semibold text-gray-500 mb-1">{label}</span>
+        <span className={`text-3xl font-black text-${color}-700`}>{age}</span>
+        <span className={`text-sm font-medium text-${color}-500`}>{unit}</span>
+        {description && <span className="text-xs text-gray-400 mt-1 text-center">{description}</span>}
+      </div>
+    );
+
+    const ProgressBar = ({ label, current, total, color = "purple" }) => {
+      const percent = Math.min((current / total) * 100, 100);
+      return (
+        <div className="mb-2">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-500">{label}</span>
+            <span className="font-semibold text-gray-700">{current} / {total}</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className={`bg-gradient-to-r from-${color}-400 to-${color}-600 h-2 rounded-full transition-all duration-700`} style={{ width: `${percent}%` }}></div>
+          </div>
+        </div>
+      );
+    };
+
+    // ========================================
+    // 3. 나이 계산 유틸리티 함수들
+    // ========================================
+
+    const calculateAllAges = (birthYear, birthMonth, birthDay) => {
+      const today = new Date();
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth() + 1;
+      const todayDay = today.getDate();
+      const birth = new Date(birthYear, birthMonth - 1, birthDay);
+
+      if (birth > today) return { error: "미래 날짜는 입력할 수 없습니다." };
+      if (birth.getFullYear() !== Number(birthYear) ||
+          birth.getMonth() !== Number(birthMonth) - 1 ||
+          birth.getDate() !== Number(birthDay)) {
+        return { error: "유효하지 않은 날짜입니다." };
+      }
+
+      // === 만 나이 (국제 나이, 2023.06.28~ 통일 기준) ===
+      let manYears = todayYear - birthYear;
+      let manMonths = todayMonth - birthMonth;
+      let manDays = todayDay - birthDay;
+      if (manDays < 0) {
+        manMonths -= 1;
+        const prevMonth = new Date(todayYear, todayMonth - 1, 0);
+        manDays += prevMonth.getDate();
+      }
+      if (manMonths < 0) {
+        manYears -= 1;
+        manMonths += 12;
+      }
+
+      // === 한국 나이 (세는 나이, 2023.06.28 폐지) ===
+      const koreanAge = todayYear - birthYear + 1;
+
+      // === 연 나이 (현재 년도 - 출생 년도) ===
+      const yearAge = todayYear - birthYear;
+
+      // === 보험 나이 (가장 가까운 생일 기준 반올림) ===
+      let insuranceAge;
+      const thisYearBirthday = new Date(todayYear, birthMonth - 1, birthDay);
+      const diffFromBirthday = Math.abs(today - thisYearBirthday);
+      const sixMonths = 182.5 * 24 * 60 * 60 * 1000;
+      if (today >= thisYearBirthday) {
+        // 생일 지남
+        const nextBd = new Date(todayYear + 1, birthMonth - 1, birthDay);
+        const diffToNext = nextBd - today;
+        insuranceAge = diffToNext < sixMonths ? manYears + 1 : manYears;
+      } else {
+        // 생일 안 지남
+        const prevBd = new Date(todayYear - 1, birthMonth - 1, birthDay);
+        const diffFromPrev = today - prevBd;
+        insuranceAge = diffFromPrev >= sixMonths ? yearAge : yearAge - 1;
+      }
+
+      // === 총 일수/주수/개월수 ===
+      const diffMs = today.getTime() - birth.getTime();
+      const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const totalWeeks = Math.floor(totalDays / 7);
+      const totalMonths = manYears * 12 + manMonths;
+      const totalHours = totalDays * 24;
+
+      // === 다음 생일 ===
+      let nextBirthday = new Date(todayYear, birthMonth - 1, birthDay);
+      if (nextBirthday <= today) {
+        nextBirthday = new Date(todayYear + 1, birthMonth - 1, birthDay);
+      }
+      const daysUntilBirthday = Math.ceil((nextBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const isBirthdayToday = todayMonth === birthMonth && todayDay === birthDay;
+
+      // === 100일, 1000일 등 기념일 ===
+      const milestones = [100, 200, 300, 365, 500, 1000, 2000, 3000, 5000, 10000, 15000, 20000];
+      const milestoneInfo = milestones.map(d => {
+        const date = new Date(birth.getTime() + d * 24 * 60 * 60 * 1000);
+        const isPast = date <= today;
+        const daysLeft = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return { days: d, date, isPast, daysLeft, isToday: daysLeft === 0 };
+      });
+
+      // === 띠 (12간지) ===
+      const zodiacAnimals = ["원숭이", "닭", "개", "돼지", "쥐", "소", "호랑이", "토끼", "용", "뱀", "말", "양"];
+      const zodiacEmojis = ["🐵", "🐔", "🐶", "🐷", "🐭", "🐮", "🐯", "🐰", "🐲", "🐍", "🐴", "🐑"];
+      const zodiacIdx = birthYear % 12;
+      const zodiacAnimal = zodiacAnimals[zodiacIdx];
+      const zodiacEmoji = zodiacEmojis[zodiacIdx];
+
+      // === 별자리 ===
+      const getZodiacSign = (m, d) => {
+        const signs = [
+          { name: "염소자리", emoji: "♑", end: [1, 19] },
+          { name: "물병자리", emoji: "♒", end: [2, 18] },
+          { name: "물고기자리", emoji: "♓", end: [3, 20] },
+          { name: "양자리", emoji: "♈", end: [4, 19] },
+          { name: "황소자리", emoji: "♉", end: [5, 20] },
+          { name: "쌍둥이자리", emoji: "♊", end: [6, 21] },
+          { name: "게자리", emoji: "♋", end: [7, 22] },
+          { name: "사자자리", emoji: "♌", end: [8, 22] },
+          { name: "처녀자리", emoji: "♍", end: [9, 22] },
+          { name: "천칭자리", emoji: "♎", end: [10, 23] },
+          { name: "전갈자리", emoji: "♏", end: [11, 22] },
+          { name: "궁수자리", emoji: "♐", end: [12, 21] },
+          { name: "염소자리", emoji: "♑", end: [12, 31] },
+        ];
+        for (const s of signs) {
+          if (m < s.end[0] || (m === s.end[0] && d <= s.end[1])) return s;
+        }
+        return signs[12];
+      };
+      const zodiacSign = getZodiacSign(birthMonth, birthDay);
+
+      // === 태어난 요일 ===
+      const dayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+      const birthDayOfWeek = dayNames[birth.getDay()];
+
+      // === 탄생석 ===
+      const birthstones = [
+        { name: "가넷", emoji: "🔴", meaning: "진실, 우정" },
+        { name: "자수정", emoji: "🟣", meaning: "성실, 평화" },
+        { name: "아쿠아마린", emoji: "🔵", meaning: "용기, 행복" },
+        { name: "다이아몬드", emoji: "💎", meaning: "영원, 순수" },
+        { name: "에메랄드", emoji: "🟢", meaning: "행운, 사랑" },
+        { name: "진주", emoji: "⚪", meaning: "건강, 부" },
+        { name: "루비", emoji: "❤️", meaning: "열정, 자유" },
+        { name: "페리도트", emoji: "💚", meaning: "부부화합" },
+        { name: "사파이어", emoji: "💙", meaning: "성실, 진리" },
+        { name: "오팔", emoji: "🌈", meaning: "희망, 순결" },
+        { name: "토파즈", emoji: "🟡", meaning: "우정, 희망" },
+        { name: "터키석", emoji: "🩵", meaning: "성공, 행운" },
+      ];
+      const birthstone = birthstones[birthMonth - 1];
+
+      // === 탄생화 ===
+      const birthFlowers = [
+        "스노드롭", "매화", "수선화", "데이지", "은방울꽃",
+        "장미", "수련", "해바라기", "과꽃", "코스모스", "국화", "동백"
+      ];
+      const birthFlower = birthFlowers[birthMonth - 1];
+
+      // === 학교 입학년도 (만 6세, 3월 기준) ===
+      // 한국은 3월 1일 ~ 다음해 2월 말 출생자가 같은 학년
+      let schoolEntryYear;
+      if (birthMonth >= 3) {
+        schoolEntryYear = birthYear + 7; // 다음해 3월 입학
+      } else {
+        schoolEntryYear = birthYear + 6; // 같은 해 범위
+      }
+
+      // === 법적 나이 기준 정보 ===
+      const getDateWhenManAge = (targetAge) => {
+        return new Date(birthYear + targetAge, birthMonth - 1, birthDay);
+      };
+
+      const legalAges = [
+        { age: 13, label: "형사 미성년 상한", law: "형법 제9조", desc: "만 14세 미만: 형사 미성년자", date: getDateWhenManAge(14) },
+        { age: 14, label: "근로 가능 (제한적)", law: "근로기준법", desc: "만 15세부터 취직인허증으로 근로 가능", date: getDateWhenManAge(15) },
+        { age: 16, label: "원동기면허 취득", law: "도로교통법", desc: "만 16세부터 원동기장치자전거 면허", date: getDateWhenManAge(16) },
+        { age: 18, label: "선거권 / 운전면허", law: "공직선거법, 도로교통법", desc: "만 18세부터 투표 및 1·2종 면허 취득", date: getDateWhenManAge(18) },
+        { age: 19, label: "성인 (민법)", law: "민법 제4조", desc: "만 19세부터 성년, 음주·흡연 가능", date: getDateWhenManAge(19) },
+        { age: 25, label: "대형면허 취득", law: "도로교통법", desc: "만 25세 (실제로는 1종 대형은 만 19세)", date: getDateWhenManAge(19) },
+        { age: 60, label: "정년", law: "고용상 연령차별금지법", desc: "법정 정년 60세", date: getDateWhenManAge(60) },
+        { age: 65, label: "기초연금 수급", law: "기초연금법", desc: "만 65세부터 기초연금 수급 가능", date: getDateWhenManAge(65) },
+      ];
+
+      // === 청소년보호법 나이 (연 나이 기준) ===
+      // 만 19세 미만 = 청소년 (연 나이로 따지면 올해 - 출생연도 < 19)
+      const isMinorByYearAge = yearAge < 19;
+      const adultByYearAgeDate = `${birthYear + 19}년 1월 1일`;
+
+      // === 군 입대 관련 (남성 기준 참고) ===
+      const militaryFirstNotice = birthYear + 19; // 만 18세 되는 해
+      const militaryDeadline = birthYear + 28; // 만 28세 전까지 입대
+
+      // === 빠른 생일 여부 ===
+      const isEarlyBirthday = birthMonth === 1 || birthMonth === 2;
+
+      // === 세대 구분 ===
+      const getGeneration = (y) => {
+        if (y <= 1945) return { name: "침묵의 세대", period: "~1945" };
+        if (y <= 1964) return { name: "베이비붐 세대", period: "1946~1964" };
+        if (y <= 1980) return { name: "X세대", period: "1965~1980" };
+        if (y <= 1996) return { name: "밀레니얼 세대 (Y세대)", period: "1981~1996" };
+        if (y <= 2012) return { name: "Z세대", period: "1997~2012" };
+        return { name: "알파 세대", period: "2013~" };
+      };
+      const generation = getGeneration(birthYear);
+
+      return {
+        // 나이들
+        manYears, manMonths, manDays,
+        koreanAge, yearAge, insuranceAge,
+        // 시간 정보
+        totalDays, totalWeeks, totalMonths, totalHours,
+        // 생일
+        daysUntilBirthday, isBirthdayToday, nextBirthday,
+        // 기념일
+        milestoneInfo,
+        // 운세/상징
+        zodiacAnimal, zodiacEmoji, zodiacSign,
+        birthDayOfWeek, birthstone, birthFlower,
+        // 학교
+        schoolEntryYear, isEarlyBirthday,
+        // 법적
+        legalAges, isMinorByYearAge, adultByYearAgeDate,
+        // 군
+        militaryFirstNotice, militaryDeadline,
+        // 세대
+        generation,
+        // 기본
+        birth, error: null,
+      };
+    };
+
+    const formatDate = (d) => `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+
+    // ========================================
+    // 4. Page Components
+    // ========================================
+
+    const AgeCalculatorPage = () => {
+      const [year, setYear] = useState("");
+      const [month, setMonth] = useState("");
+      const [day, setDay] = useState("");
+      const [result, setResult] = useState(null);
+      const [errors, setErrors] = useState({});
+      const [activeTab, setActiveTab] = useState("ages");
+
+      const validate = useCallback(() => {
+        const newErrors = {};
+        const y = Number(year);
+        const m = Number(month);
+        const d = Number(day);
+        const currentYear = new Date().getFullYear();
+        if (!year || y < 1900 || y > currentYear) newErrors.year = `1900~${currentYear}`;
+        if (!month || m < 1 || m > 12) newErrors.month = "1~12";
+        if (!day || d < 1 || d > 31) newErrors.day = "1~31";
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+      }, [year, month, day]);
+
+      const handleCalculate = useCallback(() => {
+        if (!validate()) return;
+        const res = calculateAllAges(Number(year), Number(month), Number(day));
+        if (res.error) {
+          setErrors({ general: res.error });
+          setResult(null);
+        } else {
+          setResult(res);
+          setErrors({});
+          setActiveTab("ages");
+        }
+      }, [year, month, day, validate]);
+
+      const handleReset = useCallback(() => {
+        setYear(""); setMonth(""); setDay("");
+        setResult(null); setErrors({});
+      }, []);
+
+      const handleKeyDown = useCallback((e) => {
+        if (e.key === "Enter") handleCalculate();
+      }, [handleCalculate]);
+
+      const tabs = [
+        { id: "ages", label: "나이 비교", icon: "📊" },
+        { id: "time", label: "시간 정보", icon: "⏰" },
+        { id: "legal", label: "법적 기준", icon: "⚖️" },
+        { id: "fun", label: "재미 정보", icon: "✨" },
+        { id: "milestone", label: "기념일", icon: "🎯" },
+      ];
+
+      return (
+        <div className="min-h-screen px-4 py-6" onKeyDown={handleKeyDown}>
+          <div className="w-full max-w-2xl mx-auto">
+            {/* 헤더 */}
+            <div className="text-center mb-5">
+              <div className="text-4xl mb-2 bounce">🎂</div>
+              <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text" style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                나이 계산기
+              </h1>
+              <p className="text-gray-400 mt-1 text-sm">한국의 모든 나이 기준을 한눈에</p>
+            </div>
+
+            {/* 입력 카드 */}
+            <Card className="mb-5">
+              <SectionTitle icon="📅" title="생년월일 입력" />
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <Input label="년" value={year} onChange={setYear} placeholder="2000" min="1900" max={new Date().getFullYear()} error={errors.year} />
+                <Input label="월" value={month} onChange={setMonth} placeholder="1" min="1" max="12" error={errors.month} />
+                <Input label="일" value={day} onChange={setDay} placeholder="1" min="1" max="31" error={errors.day} />
+              </div>
+              {errors.general && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-center">
+                  <p className="text-red-600 text-sm font-medium">⚠️ {errors.general}</p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <Button onClick={handleCalculate} className="flex-1">🎉 계산하기</Button>
+                <Button onClick={handleReset} variant="secondary">초기화</Button>
+              </div>
+            </Card>
+
+            {/* 결과 영역 */}
+            {result && (
+              <div className="fade-in space-y-4">
+                {/* 생일 축하 */}
+                {result.isBirthdayToday && (
+                  <div className="text-center bg-gradient-to-r from-yellow-50 to-pink-50 rounded-2xl p-5 border border-yellow-200 slide-up">
+                    <div className="text-4xl mb-2">🎉🎂🎊</div>
+                    <p className="text-lg font-bold text-pink-600">오늘은 당신의 생일입니다! 축하합니다!</p>
+                  </div>
+                )}
+
+                {/* 메인 나이 표시 */}
+                <Card>
+                  <div className="text-center mb-4">
+                    <p className="text-xs text-gray-400 mb-1">
+                      {result.birth.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })} 출생
+                    </p>
+                    <div className="bg-gradient-to-r from-violet-100 to-purple-100 rounded-2xl p-5 mb-3">
+                      <p className="text-xs text-purple-500 font-semibold mb-1">만 나이 (법적 표준)</p>
+                      <p className="text-5xl font-black text-purple-700">{result.manYears}<span className="text-xl ml-1">세</span></p>
+                      <p className="text-sm text-purple-500 mt-1">{result.manMonths}개월 {result.manDays}일</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center p-3 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-xs text-blue-400 font-semibold">한국 나이</p>
+                      <p className="text-2xl font-black text-blue-700">{result.koreanAge}<span className="text-xs ml-0.5">세</span></p>
+                      <p className="text-xs text-blue-300">세는 나이</p>
+                    </div>
+                    <div className="text-center p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <p className="text-xs text-emerald-400 font-semibold">연 나이</p>
+                      <p className="text-2xl font-black text-emerald-700">{result.yearAge}<span className="text-xs ml-0.5">세</span></p>
+                      <p className="text-xs text-emerald-300">연도 차이</p>
+                    </div>
+                    <div className="text-center p-3 bg-amber-50 rounded-xl border border-amber-100">
+                      <p className="text-xs text-amber-400 font-semibold">보험 나이</p>
+                      <p className="text-2xl font-black text-amber-700">{result.insuranceAge}<span className="text-xs ml-0.5">세</span></p>
+                      <p className="text-xs text-amber-300">반올림 기준</p>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* 탭 네비게이션 */}
+                <div className="flex gap-1 bg-white rounded-xl p-1 shadow-sm border border-gray-100 overflow-x-auto">
+                  {tabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex-1 min-w-0 px-2 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                        activeTab === tab.id
+                          ? "bg-purple-100 text-purple-700"
+                          : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <span className="block text-base">{tab.icon}</span>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 탭 내용: 나이 비교 */}
+                {activeTab === "ages" && (
+                  <Card className="slide-up">
+                    <SectionTitle icon="📊" title="나이 체계 비교" subtitle="한국에서 사용되는 다양한 나이 기준" />
+
+                    <div className="space-y-2 mb-5">
+                      <InfoRow icon="🏛️" label="만 나이 (국제 표준)" value={`${result.manYears}세`} sub="2023.06.28~ 법적 통일" highlight />
+                      <InfoRow icon="🇰🇷" label="한국 나이 (세는 나이)" value={`${result.koreanAge}세`} sub="태어나면 1살, 매년 +1" />
+                      <InfoRow icon="📆" label="연 나이" value={`${result.yearAge}세`} sub="올해 - 출생년도" />
+                      <InfoRow icon="🛡️" label="보험 나이" value={`${result.insuranceAge}세`} sub="가장 가까운 생일 반올림" />
+                    </div>
+
+                    <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
+                      <h3 className="text-sm font-bold text-violet-700 mb-2">📌 나이 체계 설명</h3>
+                      <div className="space-y-2 text-xs text-gray-600">
+                        <p><span className="font-bold text-purple-600">만 나이:</span> 태어난 날 0세, 생일마다 +1세. 2023년 6월 28일부터 법적·행정적 기준으로 통일.</p>
+                        <p><span className="font-bold text-blue-600">한국 나이 (세는 나이):</span> 태어나면 1살, 매년 1월 1일에 +1살. 일상 대화에서 아직 사용되나 법적 효력 없음.</p>
+                        <p><span className="font-bold text-emerald-600">연 나이:</span> 현재 연도 - 출생 연도. 청소년보호법(음주·흡연 등)에서 일부 적용.</p>
+                        <p><span className="font-bold text-amber-600">보험 나이:</span> 가장 가까운 생일을 기준으로 반올림. 보험료 산정에 사용.</p>
+                      </div>
+                    </div>
+
+                    {result.isEarlyBirthday && (
+                      <div className="mt-3 bg-orange-50 rounded-xl p-3 border border-orange-200">
+                        <p className="text-xs text-orange-700 font-semibold">⚡ 빠른 생일 (1~2월생)</p>
+                        <p className="text-xs text-orange-600 mt-1">
+                          이전 학제에서는 1~2월생이 이전 학년에 배정되는 "빠른 생일"에 해당했습니다.
+                          학교 입학 기준 연도: {result.schoolEntryYear}년 3월
+                        </p>
+                      </div>
+                    )}
+                  </Card>
+                )}
+
+                {/* 탭 내용: 시간 정보 */}
+                {activeTab === "time" && (
+                  <Card className="slide-up">
+                    <SectionTitle icon="⏰" title="살아온 시간" subtitle="태어난 순간부터 지금까지" />
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="text-center p-4 bg-gradient-to-b from-violet-50 to-violet-100 rounded-2xl">
+                        <p className="text-xs text-gray-500">총 일수</p>
+                        <p className="text-2xl font-black text-violet-700">{result.totalDays.toLocaleString()}</p>
+                        <p className="text-xs text-violet-400">일</p>
+                      </div>
+                      <div className="text-center p-4 bg-gradient-to-b from-blue-50 to-blue-100 rounded-2xl">
+                        <p className="text-xs text-gray-500">총 주수</p>
+                        <p className="text-2xl font-black text-blue-700">{result.totalWeeks.toLocaleString()}</p>
+                        <p className="text-xs text-blue-400">주</p>
+                      </div>
+                      <div className="text-center p-4 bg-gradient-to-b from-emerald-50 to-emerald-100 rounded-2xl">
+                        <p className="text-xs text-gray-500">총 개월수</p>
+                        <p className="text-2xl font-black text-emerald-700">{result.totalMonths.toLocaleString()}</p>
+                        <p className="text-xs text-emerald-400">개월</p>
+                      </div>
+                      <div className="text-center p-4 bg-gradient-to-b from-pink-50 to-pink-100 rounded-2xl">
+                        <p className="text-xs text-gray-500">총 시간</p>
+                        <p className="text-2xl font-black text-pink-700">{result.totalHours.toLocaleString()}</p>
+                        <p className="text-xs text-pink-400">시간</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <InfoRow icon="📅" label="태어난 요일" value={result.birthDayOfWeek} />
+                      {!result.isBirthdayToday ? (
+                        <InfoRow icon="🎂" label="다음 생일까지" value={`D-${result.daysUntilBirthday}`} sub={formatDate(result.nextBirthday)} highlight />
+                      ) : (
+                        <InfoRow icon="🎂" label="생일" value="오늘이 생일!" highlight />
+                      )}
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-xs font-semibold text-gray-500 mb-2">현재 나이 진행률</p>
+                      <ProgressBar
+                        label={`만 ${result.manYears}세 → ${result.manYears + 1}세`}
+                        current={365 - result.daysUntilBirthday}
+                        total={365}
+                        color="purple"
+                      />
+                      <ProgressBar
+                        label={`올해 진행률 (${new Date().getFullYear()}년)`}
+                        current={Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 1)) / (1000 * 60 * 60 * 24))}
+                        total={365}
+                        color="blue"
+                      />
+                    </div>
+                  </Card>
+                )}
+
+                {/* 탭 내용: 법적 기준 */}
+                {activeTab === "legal" && (
+                  <Card className="slide-up">
+                    <SectionTitle icon="⚖️" title="법적 나이 기준" subtitle="주요 법률의 나이 기준과 해당 시점" />
+
+                    {/* 청소년 여부 */}
+                    <div className={`rounded-xl p-4 mb-4 border ${result.isMinorByYearAge ? "bg-orange-50 border-orange-200" : "bg-green-50 border-green-200"}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm font-bold ${result.isMinorByYearAge ? "text-orange-700" : "text-green-700"}`}>
+                            {result.isMinorByYearAge ? "🔸 청소년 (청소년보호법)" : "✅ 성인 (청소년보호법)"}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {result.isMinorByYearAge
+                              ? `연 나이 ${result.yearAge}세 → ${result.adultByYearAgeDate}부터 음주·흡연 가능`
+                              : `연 나이 ${result.yearAge}세 → 음주·흡연 가능`
+                            }
+                          </p>
+                        </div>
+                        <span className="text-3xl">{result.isMinorByYearAge ? "🚫" : "🍺"}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {result.legalAges.map((item, i) => {
+                        const isPast = item.date <= new Date();
+                        return (
+                          <div key={i} className={`rounded-xl p-3 border ${isPast ? "bg-green-50 border-green-100" : "bg-gray-50 border-gray-100"}`}>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isPast ? "bg-green-200 text-green-700" : "bg-gray-200 text-gray-600"}`}>
+                                    만 {item.age}세
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-700">{item.label}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
+                                <p className="text-xs text-gray-400">{item.law} · {formatDate(item.date)}</p>
+                              </div>
+                              <span className="text-lg ml-2">{isPast ? "✅" : "⏳"}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-4 bg-blue-50 rounded-xl p-3 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 mb-1">🎓 학교 관련</p>
+                      <p className="text-xs text-blue-600">초등학교 입학: {result.schoolEntryYear}년 3월</p>
+                      {result.isEarlyBirthday && <p className="text-xs text-orange-600 mt-1">⚡ 1~2월생 (빠른 생일 해당)</p>}
+                    </div>
+
+                    <div className="mt-3 bg-gray-50 rounded-xl p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-600 mb-1">🪖 병역 관련 (남성 참고)</p>
+                      <p className="text-xs text-gray-500">병역 의무 통지: {result.militaryFirstNotice}년 (만 18세)</p>
+                      <p className="text-xs text-gray-500">입대 기한: {result.militaryDeadline}년까지 (만 28세 전)</p>
+                    </div>
+                  </Card>
+                )}
+
+                {/* 탭 내용: 재미 정보 */}
+                {activeTab === "fun" && (
+                  <Card className="slide-up">
+                    <SectionTitle icon="✨" title="재미있는 정보" subtitle="별자리, 띠, 탄생석 등" />
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="text-center p-4 bg-gradient-to-b from-red-50 to-orange-50 rounded-2xl border border-red-100">
+                        <span className="text-3xl">{result.zodiacEmoji}</span>
+                        <p className="text-sm font-bold text-gray-700 mt-1">{result.zodiacAnimal}띠</p>
+                        <p className="text-xs text-gray-400">12간지</p>
+                      </div>
+                      <div className="text-center p-4 bg-gradient-to-b from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100">
+                        <span className="text-3xl">{result.zodiacSign.emoji}</span>
+                        <p className="text-sm font-bold text-gray-700 mt-1">{result.zodiacSign.name}</p>
+                        <p className="text-xs text-gray-400">별자리</p>
+                      </div>
+                      <div className="text-center p-4 bg-gradient-to-b from-pink-50 to-rose-50 rounded-2xl border border-pink-100">
+                        <span className="text-3xl">{result.birthstone.emoji}</span>
+                        <p className="text-sm font-bold text-gray-700 mt-1">{result.birthstone.name}</p>
+                        <p className="text-xs text-gray-400">탄생석 · {result.birthstone.meaning}</p>
+                      </div>
+                      <div className="text-center p-4 bg-gradient-to-b from-green-50 to-emerald-50 rounded-2xl border border-green-100">
+                        <span className="text-3xl">🌸</span>
+                        <p className="text-sm font-bold text-gray-700 mt-1">{result.birthFlower}</p>
+                        <p className="text-xs text-gray-400">{month}월 탄생화</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <InfoRow icon="👶" label="태어난 요일" value={result.birthDayOfWeek} />
+                      <InfoRow icon="🏷️" label="세대 구분" value={result.generation.name} sub={result.generation.period} highlight />
+                    </div>
+
+                    <div className="mt-4 bg-purple-50 rounded-xl p-4 border border-purple-100">
+                      <p className="text-xs font-bold text-purple-700 mb-2">💡 세대별 특징</p>
+                      <p className="text-xs text-gray-600">
+                        {result.generation.name === "베이비붐 세대" && "한국전쟁 이후 태어난 세대. 경제 성장의 주역으로, 강한 직업 윤리와 헌신이 특징."}
+                        {result.generation.name === "X세대" && "민주화 운동을 경험한 세대. 독립적이고 개인주의적 성향이 강하며 아날로그와 디지털의 전환기를 경험."}
+                        {result.generation.name === "밀레니얼 세대 (Y세대)" && "인터넷과 함께 성장한 세대. 디지털 문화에 익숙하며 워라밸과 자기 계발을 중시."}
+                        {result.generation.name === "Z세대" && "스마트폰과 SNS가 일상인 디지털 네이티브. 다양성과 개성을 존중하며 짧고 강렬한 콘텐츠를 선호."}
+                        {result.generation.name === "알파 세대" && "AI와 함께 태어난 세대. 디지털 환경이 완전히 자연스러우며 새로운 기술에 가장 빠르게 적응."}
+                        {result.generation.name === "침묵의 세대" && "대공황과 세계대전을 경험한 세대. 근검절약과 인내를 미덕으로 여기는 세대."}
+                      </p>
+                    </div>
+                  </Card>
+                )}
+
+                {/* 탭 내용: 기념일 */}
+                {activeTab === "milestone" && (
+                  <Card className="slide-up">
+                    <SectionTitle icon="🎯" title="D-Day 기념일" subtitle="태어난 날 기준 주요 기념일" />
+
+                    <div className="space-y-2">
+                      {result.milestoneInfo.map((m, i) => (
+                        <div
+                          key={i}
+                          className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
+                            m.isToday ? "bg-yellow-50 border-yellow-300 ring-2 ring-yellow-200" :
+                            m.isPast ? "bg-gray-50 border-gray-100" :
+                            "bg-purple-50 border-purple-100"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                              m.isToday ? "bg-yellow-200 text-yellow-700" :
+                              m.isPast ? "bg-gray-200 text-gray-600" :
+                              "bg-purple-200 text-purple-700"
+                            }`}>
+                              {m.days.toLocaleString()}일
+                            </span>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-700">{formatDate(m.date)}</p>
+                              {m.isToday && <p className="text-xs text-yellow-600 font-bold">🎉 오늘!</p>}
+                            </div>
+                          </div>
+                          <span className={`text-xs font-semibold ${
+                            m.isToday ? "text-yellow-600" :
+                            m.isPast ? "text-gray-400" :
+                            "text-purple-600"
+                          }`}>
+                            {m.isToday ? "TODAY" : m.isPast ? "지남" : `D-${m.daysLeft}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* 푸터 */}
+                <p className="text-center text-gray-400 text-xs py-4">
+                  기준일: {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })} · 만 나이 통일법 (2023.06.28 시행) 기준
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // ========================================
+    // 5. App Component
+    // ========================================
+    const App = () => <AgeCalculatorPage />;
+
+    // ========================================
+    // 6. ReactDOM Render
+    // ========================================
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
