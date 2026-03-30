@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>더치페이 계산기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
+    body { font-family: 'Noto Sans KR', sans-serif; }
+    .fade-in { animation: fadeIn 0.5s ease-in-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .slide-up { animation: slideUp 0.4s ease-out; }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-sky-50 to-cyan-50 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ========================================
+    // 1. React Hooks
+    // ========================================
+    const { useState, useMemo, useCallback } = React;
+
+    // ========================================
+    // 2. 메뉴 데이터 (배열)
+    // ========================================
+    const MENU_LIST = [
+      { name: "김치찌개", price: 9000 },
+      { name: "된장찌개", price: 9000 },
+      { name: "불고기", price: 15000 },
+      { name: "삼겹살", price: 17000 },
+      { name: "비빔밥", price: 10000 },
+      { name: "냉면", price: 11000 },
+      { name: "떡볶이", price: 7000 },
+      { name: "치킨", price: 20000 },
+      { name: "피자", price: 25000 },
+      { name: "파스타", price: 14000 },
+      { name: "돈까스", price: 12000 },
+      { name: "초밥", price: 18000 },
+    ];
+
+    // ========================================
+    // 3. 금액 포맷
+    // ========================================
+    const formatWon = (n) => n.toLocaleString("ko-KR") + "원";
+
+    // ========================================
+    // 5. 메인 App 컴포넌트
+    // ========================================
+    const App = () => {
+      // --- state ---
+      const [people, setPeople] = useState([
+        { id: 1, name: "박훈", menus: [] },
+        { id: 2, name: "국윤희", menus: [] },
+        { id: 3, name: "박라엘", menus: [] },
+        { id: 4, name: "박라건", menus: [] },
+      ]);
+      const [nextId, setNextId] = useState(5);
+      const [calculated, setCalculated] = useState(false);
+      const [showNameInput, setShowNameInput] = useState(false);
+      const [newName, setNewName] = useState("");
+
+      // --- 할인 조건 (수동 추가) ---
+      // discounts 배열: { id, name, type: "percent"|"amount", value }
+      const [discounts, setDiscounts] = useState([]);
+      const [discountNextId, setDiscountNextId] = useState(1);
+      const [showDiscountInput, setShowDiscountInput] = useState(false);
+      const [newDiscount, setNewDiscount] = useState({ name: "", type: "percent", value: "" });
+
+      const addDiscount = useCallback(() => {
+        const name = newDiscount.name.trim();
+        const value = parseInt(newDiscount.value);
+        if (!name || isNaN(value) || value <= 0) return;
+        // 조건 분기: 퍼센트 할인은 100% 초과 불가
+        if (newDiscount.type === "percent" && value > 100) return;
+        setDiscounts((prev) => [...prev, { id: discountNextId, name, type: newDiscount.type, value }]);
+        setDiscountNextId((n) => n + 1);
+        setNewDiscount({ name: "", type: "percent", value: "" });
+        setShowDiscountInput(false);
+        setCalculated(false);
+      }, [newDiscount, discountNextId]);
+
+      const removeDiscount = useCallback((id) => {
+        setDiscounts((prev) => prev.filter((d) => d.id !== id));
+        setCalculated(false);
+      }, []);
+
+      // --- 참가자 추가 ---
+      const addPerson = useCallback(() => {
+        const trimmed = newName.trim();
+        if (!trimmed) return;
+        setPeople((prev) => [...prev, { id: nextId, name: trimmed, menus: [] }]);
+        setNextId((n) => n + 1);
+        setNewName("");
+        setShowNameInput(false);
+        setCalculated(false);
+      }, [nextId, newName]);
+
+      // --- 참가자 삭제 ---
+      const removePerson = useCallback((id) => {
+        setPeople((prev) => prev.filter((p) => p.id !== id));
+        setCalculated(false);
+      }, []);
+
+      // --- 이름 변경 ---
+      const updateName = useCallback((id, name) => {
+        setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)));
+      }, []);
+
+      // --- 메뉴 추가 ---
+      const addMenu = useCallback((personId, menuItem) => {
+        setPeople((prev) =>
+          prev.map((p) =>
+            p.id === personId
+              ? { ...p, menus: [...p.menus, { ...menuItem, uid: Date.now() + Math.random() }] }
+              : p
+          )
+        );
+        setCalculated(false);
+      }, []);
+
+      // --- 메뉴 삭제 ---
+      const removeMenu = useCallback((personId, uid) => {
+        setPeople((prev) =>
+          prev.map((p) =>
+            p.id === personId
+              ? { ...p, menus: p.menus.filter((m) => m.uid !== uid) }
+              : p
+          )
+        );
+        setCalculated(false);
+      }, []);
+
+      // ========================================
+      // 6. 계산 로직 (배열 + 반복문 + 조건 분기)
+      // ========================================
+      const result = useMemo(() => {
+        // 각 참가자의 소계를 배열 반복문으로 계산
+        const personTotals = []; // 배열
+        for (let i = 0; i < people.length; i++) { // 반복문
+          const person = people[i];
+          let subtotal = 0;
+          for (let j = 0; j < person.menus.length; j++) { // 중첩 반복문
+            subtotal += person.menus[j].price;
+          }
+          personTotals.push({
+            id: person.id,
+            name: person.name,
+            menus: person.menus,
+            subtotal,
+          });
+        }
+
+        // 전체 합계
+        let grandTotal = 0;
+        for (let i = 0; i < personTotals.length; i++) { // 반복문
+          grandTotal += personTotals[i].subtotal;
+        }
+
+        // 조건 분기: 수동 할인 적용 (반복문으로 모든 할인 순회)
+        let totalDiscountAmount = 0;
+        const appliedDiscounts = []; // 배열: 적용된 할인 내역
+        for (let i = 0; i < discounts.length; i++) { // 반복문
+          const d = discounts[i];
+          let amount;
+          // 조건 분기: 할인 타입에 따라 계산 방식 분기
+          if (d.type === "percent") {
+            amount = Math.floor(grandTotal * (d.value / 100));
+          } else {
+            amount = d.value;
+          }
+          totalDiscountAmount += amount;
+          appliedDiscounts.push({ ...d, amount });
+        }
+
+        // 조건 분기: 할인 총액이 총 금액 초과하지 않도록
+        if (totalDiscountAmount > grandTotal) {
+          totalDiscountAmount = grandTotal;
+        }
+        const finalTotal = grandTotal - totalDiscountAmount;
+
+        // 각자 할인 적용 금액 계산 (비율 기반)
+        const finalPerPerson = []; // 배열
+        for (let i = 0; i < personTotals.length; i++) { // 반복문
+          const pt = personTotals[i];
+          let finalAmount;
+          // 조건 분기: 총액이 0이면 나누기 불가
+          if (grandTotal === 0) {
+            finalAmount = 0;
+          } else {
+            // 각자 비율에 따라 할인 분배
+            const ratio = pt.subtotal / grandTotal;
+            finalAmount = Math.round(finalTotal * ratio);
+          }
+
+          // 조건 분기: 할인 적용 여부에 따라 절약 금액 표시
+          const saved = pt.subtotal - finalAmount;
+          finalPerPerson.push({
+            ...pt,
+            finalAmount,
+            saved,
+            hasDiscount: saved > 0,
+          });
+        }
+
+        return {
+          personTotals: finalPerPerson,
+          grandTotal,
+          appliedDiscounts,
+          totalDiscountAmount,
+          finalTotal,
+          hasAnyDiscount: discounts.length > 0,
+          peopleCount: people.length,
+        };
+      }, [people, discounts]);
+
+      // ========================================
+      // 7. UI 렌더링
+      // ========================================
+      return (
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          {/* 헤더 */}
+          <div className="text-center mb-8 fade-in">
+            <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+              더치페이 계산기
+            </h1>
+            <p className="text-gray-500 mt-2">각자 먹은 메뉴를 선택하면 할인까지 자동 계산!</p>
+            <div className="mt-3 inline-flex items-center gap-2 bg-white/70 px-4 py-2 rounded-full text-sm text-gray-600 shadow-sm">
+              <span>현재 인원:</span>
+              <span className="font-bold text-blue-600 text-lg">{people.length}명</span>
+            </div>
+          </div>
+
+          {/* 할인 조건 (수동 추가) */}
+          <div className="bg-white/60 backdrop-blur rounded-2xl p-4 mb-6 shadow-sm border border-blue-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-700">할인 조건</h3>
+              <span className="text-xs text-gray-400">{discounts.length}개 적용중</span>
+            </div>
+
+            {/* 등록된 할인 목록 */}
+            {discounts.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-2 mb-3">등록된 할인이 없습니다</p>
+            ) : (
+              <div className="space-y-2 mb-3">
+                {discounts.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between bg-green-50 rounded-xl px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                        {d.type === "percent" ? "%" : "W"}
+                      </span>
+                      <span className="text-gray-700 font-medium">{d.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-green-600">
+                        {d.type === "percent" ? `${d.value}%` : formatWon(d.value)}
+                      </span>
+                      <button
+                        onClick={() => removeDiscount(d.id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 할인 추가 입력 */}
+            {showDiscountInput ? (
+              <div className="bg-blue-50/50 rounded-xl p-3 space-y-2 slide-up">
+                <input
+                  type="text"
+                  placeholder="할인 이름 (예: 쿠폰, 멤버십)"
+                  value={newDiscount.name}
+                  onChange={(e) => setNewDiscount((prev) => ({ ...prev, name: e.target.value }))}
+                  autoFocus
+                  className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <div className="flex gap-2">
+                  <div className="flex rounded-lg border border-blue-200 overflow-hidden text-sm">
+                    <button
+                      onClick={() => setNewDiscount((prev) => ({ ...prev, type: "percent" }))}
+                      className={`px-3 py-2 font-semibold transition-colors ${newDiscount.type === "percent" ? "bg-blue-500 text-white" : "bg-white text-gray-600 hover:bg-blue-50"}`}
+                    >
+                      % 비율
+                    </button>
+                    <button
+                      onClick={() => setNewDiscount((prev) => ({ ...prev, type: "amount" }))}
+                      className={`px-3 py-2 font-semibold transition-colors ${newDiscount.type === "amount" ? "bg-blue-500 text-white" : "bg-white text-gray-600 hover:bg-blue-50"}`}
+                    >
+                      원 금액
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    placeholder={newDiscount.type === "percent" ? "할인율 (1~100)" : "할인 금액"}
+                    value={newDiscount.value}
+                    onChange={(e) => setNewDiscount((prev) => ({ ...prev, value: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && addDiscount()}
+                    className="flex-1 px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addDiscount}
+                    className="flex-1 py-2 rounded-lg bg-green-500 text-white font-semibold text-sm hover:bg-green-600 transition-colors"
+                  >
+                    할인 추가
+                  </button>
+                  <button
+                    onClick={() => { setShowDiscountInput(false); setNewDiscount({ name: "", type: "percent", value: "" }); }}
+                    className="px-4 py-2 rounded-lg bg-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-300 transition-colors"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDiscountInput(true)}
+                className="w-full py-2 rounded-xl border-2 border-dashed border-green-300 text-green-500 font-semibold text-sm hover:bg-green-50 hover:border-green-400 transition-all"
+              >
+                + 할인 조건 추가
+              </button>
+            )}
+          </div>
+
+          {/* 참가자 카드 목록 */}
+          {people.map((person, index) => (
+            <div key={person.id} className="bg-white/80 backdrop-blur rounded-2xl p-5 mb-4 shadow-sm border border-blue-100 slide-up">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
+                    {index + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={person.name}
+                    onChange={(e) => updateName(person.id, e.target.value)}
+                    className="font-semibold text-gray-800 bg-transparent border-b-2 border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none px-1 py-0.5 transition-colors"
+                  />
+                </div>
+                {people.length > 1 && (
+                  <button
+                    onClick={() => removePerson(person.id)}
+                    className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 transition-colors"
+                    title="삭제"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* 메뉴 선택 드롭다운 */}
+              <div className="mb-3">
+                <select
+                  className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm"
+                  value=""
+                  onChange={(e) => {
+                    const idx = parseInt(e.target.value);
+                    if (!isNaN(idx)) addMenu(person.id, MENU_LIST[idx]);
+                  }}
+                >
+                  <option value="">+ 메뉴 추가하기</option>
+                  {MENU_LIST.map((item, i) => (
+                    <option key={i} value={i}>
+                      {item.name} — {formatWon(item.price)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 선택된 메뉴 목록 */}
+              {person.menus.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-3">아직 메뉴를 선택하지 않았습니다</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {person.menus.map((menu) => (
+                    <div
+                      key={menu.uid}
+                      className="flex items-center justify-between bg-blue-50/60 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <span className="text-gray-700">{menu.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-blue-600">{formatWon(menu.price)}</span>
+                        <button
+                          onClick={() => removeMenu(person.id, menu.uid)}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="text-right text-sm font-semibold text-gray-600 pt-1">
+                    소계: {formatWon(person.menus.reduce((sum, m) => sum + m.price, 0))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* 참가자 추가 */}
+          {showNameInput ? (
+            <div className="flex gap-2 mb-6 slide-up">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addPerson()}
+                placeholder="이름을 입력하세요"
+                autoFocus
+                className="flex-1 px-4 py-3 rounded-2xl border-2 border-blue-300 focus:border-blue-500 focus:outline-none text-gray-700 font-semibold"
+              />
+              <button
+                onClick={addPerson}
+                className="px-5 py-3 rounded-2xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors"
+              >
+                추가
+              </button>
+              <button
+                onClick={() => { setShowNameInput(false); setNewName(""); }}
+                className="px-4 py-3 rounded-2xl bg-gray-200 text-gray-600 font-semibold hover:bg-gray-300 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowNameInput(true)}
+              className="w-full py-3 rounded-2xl border-2 border-dashed border-blue-300 text-blue-500 font-semibold hover:bg-blue-50 hover:border-blue-400 transition-all mb-6"
+            >
+              + 참가자 추가
+            </button>
+          )}
+
+          {/* 계산하기 버튼 */}
+          <button
+            onClick={() => setCalculated(true)}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all mb-6"
+          >
+            정산하기
+          </button>
+
+          {/* 결과 영역 */}
+          {calculated && (
+            <div className="bg-white/90 backdrop-blur rounded-2xl p-6 shadow-lg border border-blue-200 slide-up">
+              <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">정산 결과</h2>
+
+              {/* 총액 & 할인 정보 */}
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 mb-5">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>총 주문 금액</span>
+                  <span className="font-semibold">{formatWon(result.grandTotal)}</span>
+                </div>
+                {result.hasAnyDiscount ? (
+                  result.appliedDiscounts.map((d) => (
+                    <div key={d.id} className="flex justify-between text-sm mb-1">
+                      <span className="text-green-600 font-semibold">
+                        {d.name} ({d.type === "percent" ? `${d.value}%` : formatWon(d.value)})
+                      </span>
+                      <span className="text-green-600 font-bold">-{formatWon(d.amount)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-400">적용된 할인 없음</span>
+                    <span className="text-gray-400">0원</span>
+                  </div>
+                )}
+                <hr className="my-2 border-blue-200" />
+                <div className="flex justify-between font-bold text-lg">
+                  <span className="text-gray-800">최종 금액</span>
+                  <span className="text-blue-600">{formatWon(result.finalTotal)}</span>
+                </div>
+              </div>
+
+              {/* 1인당 정산 내역 */}
+              <h3 className="font-semibold text-gray-700 mb-3">1인당 정산 내역</h3>
+              <div className="space-y-3">
+                {result.personTotals.map((pt) => (
+                  <div
+                    key={pt.id}
+                    className="bg-gray-50 rounded-xl p-4 border border-gray-100"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-gray-800">{pt.name}</span>
+                      <span className="text-xl font-extrabold text-blue-600">
+                        {formatWon(pt.finalAmount)}
+                      </span>
+                    </div>
+                    {pt.menus.length > 0 && (
+                      <div className="text-xs text-gray-500 mb-1">
+                        {pt.menus.map((m) => m.name).join(", ")}
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">원래 금액: {formatWon(pt.subtotal)}</span>
+                      {pt.hasDiscount && (
+                        <span className="text-green-500 font-semibold">
+                          {formatWon(pt.saved)} 절약!
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 초기화 */}
+              <button
+                onClick={() => {
+                  setPeople([
+                    { id: 1, name: "박훈", menus: [] },
+                    { id: 2, name: "국윤희", menus: [] },
+                    { id: 3, name: "박라엘", menus: [] },
+                    { id: 4, name: "박라건", menus: [] },
+                  ]);
+                  setNextId(5);
+                  setDiscounts([]);
+                  setDiscountNextId(1);
+                  setCalculated(false);
+                }}
+                className="w-full mt-5 py-3 rounded-xl bg-gray-100 text-gray-600 font-semibold hover:bg-gray-200 transition-colors"
+              >
+                초기화
+              </button>
+            </div>
+          )}
+
+          {/* 푸터 */}
+          <p className="text-center text-gray-400 text-xs mt-8 mb-4">
+            배열 + 반복문 + 조건 분기 활용 더치페이 계산기
+          </p>
+        </div>
+      );
+    };
+
+    // ========================================
+    // 8. 렌더링
+    // ========================================
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>

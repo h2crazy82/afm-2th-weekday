@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF 변환기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+  <style>
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .toast-enter { animation: slideIn 0.3s ease-out; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 1s linear infinite; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useCallback, useEffect } = React;
+
+    function Button({ children, onClick, variant = 'primary', size = 'md', disabled = false, className = '' }) {
+      const base = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+      const variants = {
+        primary: 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 focus:ring-indigo-500 shadow-md hover:shadow-lg',
+        secondary: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-indigo-500',
+      };
+      const sizes = { sm: 'px-3 py-1.5 text-sm', md: 'px-5 py-2.5 text-sm', lg: 'px-6 py-3 text-base' };
+      return (
+        <button onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}>
+          {children}
+        </button>
+      );
+    }
+
+    function Toast({ message, visible, onClose }) {
+      useEffect(() => {
+        if (visible) { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }
+      }, [visible, onClose]);
+      if (!visible) return null;
+      return (
+        <div className="fixed top-6 right-6 z-50 toast-enter">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            <span className="font-medium">{message}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function Spinner() {
+      return (
+        <svg className="spinner w-5 h-5" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      );
+    }
+
+    // ==========================================
+    // PDF Generation - html2pdf.js 사용
+    // ==========================================
+    async function generatePDF(title, content, fontSize) {
+      const fontSizeMap = { small: '13px', medium: '15px', large: '19px' };
+      const titleSize = { small: '20px', medium: '24px', large: '28px' };
+
+      // body에 완전히 보이는 요소로 추가 (html2canvas가 확실히 캡처하도록)
+      const container = document.createElement('div');
+      container.setAttribute('id', 'pdf-temp-render');
+      container.style.cssText = [
+        'position: absolute',
+        'top: 0',
+        'left: 0',
+        'width: 700px',
+        'padding: 40px 50px',
+        'background: white',
+        'font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif',
+        'color: #1a1a1a',
+        'line-height: 1.8',
+        'z-index: 99999',
+      ].join(';');
+
+      let innerHtml = '';
+      if (title) {
+        innerHtml += '<div style="font-size:' + titleSize[fontSize] + ';font-weight:700;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #6366f1;color:#312e81;">' + escapeHTML(title) + '</div>';
+      }
+      var lines = content.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var lineContent = escapeHTML(lines[i]) || '&nbsp;';
+        innerHtml += '<div style="font-size:' + fontSizeMap[fontSize] + ';margin-bottom:6px;min-height:1.2em;">' + lineContent + '</div>';
+      }
+
+      container.innerHTML = innerHtml;
+      document.body.appendChild(container);
+
+      // 레이아웃 및 폰트 렌더링 대기
+      await new Promise(function(resolve) { setTimeout(resolve, 500); });
+
+      var filename = title ? title + '.pdf' : 'document.pdf';
+
+      try {
+        var worker = html2pdf().set({
+          margin: [10, 10, 10, 10],
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            letterRendering: true,
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        });
+
+        await worker.from(container).save();
+      } finally {
+        if (container.parentNode) {
+          container.parentNode.removeChild(container);
+        }
+      }
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ==========================================
+    // 탭 1: 직접 작성하기
+    // ==========================================
+    function WriteTab({ onToast }) {
+      const [title, setTitle] = useState('');
+      const [content, setContent] = useState('');
+      const [fontSize, setFontSize] = useState('medium');
+      const [generating, setGenerating] = useState(false);
+
+      const handleGenerate = async () => {
+        if (!content.trim()) return;
+        setGenerating(true);
+        try {
+          await generatePDF(title, content, fontSize);
+          onToast('PDF가 성공적으로 생성되었습니다!');
+        } catch (err) {
+          console.error('PDF 생성 오류:', err);
+          onToast('PDF 생성 중 오류가 발생했습니다: ' + err.message);
+        } finally {
+          setGenerating(false);
+        }
+      };
+
+      const sizeLabel = { small: '작게', medium: '보통', large: '크게' };
+
+      return (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">PDF 제목</label>
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="제목을 입력하세요 (선택사항)"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">내용 작성</label>
+            <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="PDF로 변환할 내용을 작성하세요..." rows={12}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-vertical" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">글자 크기</label>
+            <div className="flex gap-2">
+              {['small','medium','large'].map(s => (
+                <button key={s} onClick={() => setFontSize(s)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${fontSize === s ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {sizeLabel[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {content.trim() && (
+            <div className="bg-white rounded-xl shadow border border-gray-100 p-5">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">미리보기</h3>
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 max-h-48 overflow-y-auto">
+                {title && <p className="font-bold text-lg text-indigo-900 mb-2 pb-2 border-b border-indigo-200">{title}</p>}
+                <div className={`text-gray-700 whitespace-pre-wrap ${fontSize === 'small' ? 'text-sm' : fontSize === 'large' ? 'text-lg' : 'text-base'}`}>{content}</div>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={handleGenerate} disabled={!content.trim() || generating} size="lg" className="w-full">
+            {generating ? <><Spinner /><span className="ml-2">생성 중...</span></> : (
+              <><svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>PDF 다운로드</>
+            )}
+          </Button>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 탭 2: 기존 내용 변환하기
+    // ==========================================
+    function ConvertTab({ onToast }) {
+      const [content, setContent] = useState('');
+      const [title, setTitle] = useState('');
+      const [fileName, setFileName] = useState('');
+      const [fontSize, setFontSize] = useState('medium');
+      const [generating, setGenerating] = useState(false);
+      const [urlInput, setUrlInput] = useState('');
+      const [fetching, setFetching] = useState(false);
+      const fileRef = useRef(null);
+
+      const handleFile = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setFileName(file.name);
+        setTitle(file.name.replace(/\.[^.]+$/, ''));
+        const reader = new FileReader();
+        reader.onload = (ev) => setContent(ev.target.result);
+        reader.readAsText(file, 'UTF-8');
+      };
+
+      const handlePaste = async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) { setContent(text); setFileName(''); setTitle('클립보드 내용'); onToast('클립보드 내용을 불러왔습니다.'); }
+        } catch { onToast('클립보드 접근 권한이 필요합니다.'); }
+      };
+
+      const handleFetchUrl = async () => {
+        if (!urlInput.trim()) return;
+        setFetching(true);
+        try {
+          const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(urlInput)}`);
+          const html = await res.text();
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          doc.querySelectorAll('script, style, nav, footer, header').forEach(el => el.remove());
+          const text = (doc.body.innerText || doc.body.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+          if (text) { setContent(text); setFileName(''); setTitle('웹페이지 내용'); onToast('웹페이지 내용을 불러왔습니다.'); }
+          else { onToast('내용을 추출할 수 없습니다.'); }
+        } catch { onToast('URL을 불러올 수 없습니다.'); }
+        finally { setFetching(false); }
+      };
+
+      const handleGenerate = async () => {
+        if (!content.trim()) return;
+        setGenerating(true);
+        try {
+          await generatePDF(title, content, fontSize);
+          onToast('PDF가 성공적으로 생성되었습니다!');
+        } catch (err) {
+          console.error('PDF 생성 오류:', err);
+          onToast('PDF 생성 중 오류가 발생했습니다: ' + err.message);
+        } finally { setGenerating(false); }
+      };
+
+      const sizeLabel = { small: '작게', medium: '보통', large: '크게' };
+
+      return (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">텍스트 파일 업로드</label>
+            <div className="flex items-center gap-3">
+              <input ref={fileRef} type="file" accept=".txt,.text,.md,.html" onChange={handleFile} className="hidden" />
+              <Button variant="secondary" onClick={() => fileRef.current.click()}>
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                파일 선택
+              </Button>
+              <Button variant="secondary" onClick={handlePaste}>
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                붙여넣기
+              </Button>
+              {fileName && <span className="text-sm text-gray-500 truncate">{fileName}</span>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">웹페이지 URL</label>
+            <div className="flex gap-2">
+              <input type="url" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="https://example.com"
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+              <Button variant="secondary" onClick={handleFetchUrl} disabled={!urlInput.trim() || fetching}>
+                {fetching ? <Spinner /> : '가져오기'}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">PDF 제목</label>
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="제목을 입력하세요 (선택사항)"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">글자 크기</label>
+            <div className="flex gap-2">
+              {['small','medium','large'].map(s => (
+                <button key={s} onClick={() => setFontSize(s)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${fontSize === s ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {sizeLabel[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {content.trim() ? (
+            <div className="bg-white rounded-xl shadow border border-gray-100 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">내용 미리보기</h3>
+                <button onClick={() => { setContent(''); setFileName(''); setTitle(''); }} className="text-xs text-red-500 hover:text-red-700">초기화</button>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{content}</div>
+              <p className="mt-2 text-xs text-gray-400">{content.length.toLocaleString()}자</p>
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center">
+              <svg className="mx-auto w-12 h-12 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <p className="text-gray-400 text-sm">파일 업로드, 클립보드 붙여넣기, 또는 URL을 입력하여<br/>변환할 내용을 불러오세요.</p>
+            </div>
+          )}
+
+          <Button onClick={handleGenerate} disabled={!content.trim() || generating} size="lg" className="w-full">
+            {generating ? <><Spinner /><span className="ml-2">생성 중...</span></> : (
+              <><svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>PDF 다운로드</>
+            )}
+          </Button>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // App
+    // ==========================================
+    function App() {
+      const [activeTab, setActiveTab] = useState('write');
+      const [toast, setToast] = useState({ visible: false, message: '' });
+      const showToast = useCallback((msg) => setToast({ visible: true, message: msg }), []);
+      const hideToast = useCallback(() => setToast({ visible: false, message: '' }), []);
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+          <header className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
+            <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 backdrop-blur rounded-xl p-2.5">
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white">PDF 변환기</h1>
+                  <p className="text-indigo-200 text-sm mt-0.5">텍스트를 PDF로 간편하게 변환하세요</p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
+            <div className="flex rounded-xl bg-white shadow-sm border border-gray-100 p-1.5 mb-6">
+              {[{ id:'write', label:'직접 작성하기', short:'작성' }, { id:'convert', label:'기존 내용 변환하기', short:'변환' }].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === tab.id ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.short}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5 sm:p-7">
+              {activeTab === 'write' ? <WriteTab onToast={showToast} /> : <ConvertTab onToast={showToast} />}
+            </div>
+          </main>
+
+          <Toast message={toast.message} visible={toast.visible} onClose={hideToast} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

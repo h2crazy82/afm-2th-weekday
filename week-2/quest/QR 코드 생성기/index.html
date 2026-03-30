@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR 코드 생성기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .animate-scale-in { animation: scaleIn 0.35s ease-out; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-indigo-50 min-h-screen flex flex-col">
+
+  <!-- 상단: QR 코드 표시 영역 -->
+  <div class="flex-1 flex flex-col items-center justify-center px-4 pb-52">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-100 mb-4">
+        <svg class="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-slate-800 tracking-tight">QR 코드 생성기</h1>
+      <p class="text-slate-500 mt-1 text-sm">숫자를 입력하면 QR 코드를 만들어 드려요</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8 w-full max-w-sm">
+      <!-- 기본 안내 -->
+      <div id="placeholder" class="flex flex-col items-center py-8 text-slate-400">
+        <svg class="w-20 h-20 mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+        </svg>
+        <p class="text-sm">아래에서 숫자를 입력하고</p>
+        <p class="text-sm">QR 코드를 생성해 보세요</p>
+      </div>
+
+      <!-- QR 결과 -->
+      <div id="qr-result" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm font-medium text-slate-500">생성된 QR 코드</span>
+          <span id="qr-value-badge" class="text-xs font-mono bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full"></span>
+        </div>
+        <div class="flex justify-center bg-white rounded-xl p-4 border border-slate-100">
+          <div id="qr-container"></div>
+        </div>
+        <button onclick="downloadQR()" class="w-full mt-4 px-5 py-2.5 text-base font-semibold rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm hover:shadow inline-flex items-center justify-center gap-2 transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          PNG로 저장하기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 하단 고정: 입력 패널 -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+    <div class="max-w-sm mx-auto px-4 py-4 sm:py-5">
+      <div class="flex items-center justify-between mb-2">
+        <span id="validation-msg" class="text-xs font-medium text-slate-400">숫자 4~8자리를 입력해 주세요</span>
+        <span id="digit-counter" class="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">0/8</span>
+      </div>
+
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <input
+            id="number-input"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            placeholder="숫자를 입력하세요 (4~8자리)"
+            maxlength="8"
+            class="w-full px-4 py-3 text-lg font-mono tracking-widest bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all placeholder:text-slate-300 placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
+          />
+          <button id="clear-btn" onclick="clearInput()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <button id="generate-btn" onclick="generateQR()" disabled
+          class="shrink-0 px-6 py-3 text-lg font-semibold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 disabled:bg-indigo-300 disabled:cursor-not-allowed disabled:shadow-none transition-all inline-flex items-center justify-center">
+          생성
+        </button>
+      </div>
+
+      <div id="progress-bar" class="flex gap-1 mt-3 justify-center"></div>
+    </div>
+  </div>
+
+  <!-- QR 코드 라이브러리 (qrcode-generator: 가장 안정적인 브라우저용 라이브러리) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+
+  <script>
+    // 요소 참조
+    const input = document.getElementById('number-input');
+    const generateBtn = document.getElementById('generate-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const validationMsg = document.getElementById('validation-msg');
+    const digitCounter = document.getElementById('digit-counter');
+    const progressBar = document.getElementById('progress-bar');
+    const placeholder = document.getElementById('placeholder');
+    const qrResult = document.getElementById('qr-result');
+    const qrContainer = document.getElementById('qr-container');
+    const qrValueBadge = document.getElementById('qr-value-badge');
+
+    let currentValue = '';
+
+    // 프로그레스 바 초기화
+    for (let i = 0; i < 8; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'h-1 flex-1 rounded-full transition-all duration-200 bg-slate-200';
+      progressBar.appendChild(dot);
+    }
+
+    // 입력 이벤트
+    input.addEventListener('input', function () {
+      const filtered = this.value.replace(/[^0-9]/g, '').slice(0, 8);
+      this.value = filtered;
+      currentValue = filtered;
+      updateUI();
+    });
+
+    function updateUI() {
+      const len = currentValue.length;
+
+      // 클리어 버튼
+      clearBtn.classList.toggle('hidden', len === 0);
+
+      // 생성 버튼
+      generateBtn.disabled = len < 4;
+
+      // 검증 메시지
+      if (len === 0) {
+        validationMsg.textContent = '숫자 4~8자리를 입력해 주세요';
+        validationMsg.className = 'text-xs font-medium text-slate-400';
+      } else if (len < 4) {
+        validationMsg.textContent = '4자리 이상 입력해 주세요';
+        validationMsg.className = 'text-xs font-medium text-amber-500';
+      } else {
+        validationMsg.textContent = '생성 가능합니다';
+        validationMsg.className = 'text-xs font-medium text-emerald-500';
+      }
+
+      // 카운터
+      digitCounter.textContent = len + '/8';
+      if (len >= 4) {
+        digitCounter.className = 'text-xs font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600';
+      } else {
+        digitCounter.className = 'text-xs font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-400';
+      }
+
+      // 프로그레스 바
+      const bars = progressBar.children;
+      for (let i = 0; i < 8; i++) {
+        if (i < len) {
+          bars[i].className = 'h-1 flex-1 rounded-full transition-all duration-200 ' + (len < 4 ? 'bg-amber-400' : 'bg-indigo-500');
+        } else {
+          bars[i].className = 'h-1 flex-1 rounded-full transition-all duration-200 bg-slate-200';
+        }
+      }
+    }
+
+    function generateQR() {
+      if (currentValue.length < 4 || currentValue.length > 8) return;
+
+      // qrcode-generator 라이브러리 사용
+      var qr = qrcode(0, 'H');
+      qr.addData(currentValue);
+      qr.make();
+
+      // QR 이미지 생성
+      qrContainer.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4 });
+
+      // 배지 값 업데이트
+      qrValueBadge.textContent = currentValue;
+
+      // 화면 전환
+      placeholder.classList.add('hidden');
+      qrResult.classList.remove('hidden');
+      qrResult.classList.add('animate-scale-in');
+    }
+
+    function downloadQR() {
+      // SVG를 Canvas로 변환 후 PNG 다운로드
+      var svg = qrContainer.querySelector('svg');
+      if (!svg) return;
+
+      var svgData = new XMLSerializer().serializeToString(svg);
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var img = new Image();
+
+      img.onload = function () {
+        canvas.width = img.width * 2;
+        canvas.height = img.height * 2;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        var link = document.createElement('a');
+        link.download = 'qr-' + currentValue + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    }
+
+    function clearInput() {
+      input.value = '';
+      currentValue = '';
+      placeholder.classList.remove('hidden');
+      qrResult.classList.add('hidden');
+      qrContainer.innerHTML = '';
+      updateUI();
+    }
+  </script>
+</body>
+</html>
