@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NASA — Astronomy Picture of the Day</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Inter:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Playfair Display', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Bebas Neue', 'Impact', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(1.05); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .animate-fade-up { animation: fadeUp 1s ease-out forwards; }
+    .animate-fade-in { animation: fadeIn 1.2s ease-out forwards; }
+    .animate-slide-down { animation: slideDown 0.8s ease-out forwards; }
+    .animate-scale-in { animation: scaleIn 1.5s ease-out forwards; }
+    .delay-100 { animation-delay: 0.1s; opacity: 0; }
+    .delay-200 { animation-delay: 0.2s; opacity: 0; }
+    .delay-300 { animation-delay: 0.3s; opacity: 0; }
+    .delay-400 { animation-delay: 0.4s; opacity: 0; }
+    .delay-500 { animation-delay: 0.5s; opacity: 0; }
+    .delay-600 { animation-delay: 0.6s; opacity: 0; }
+    .delay-700 { animation-delay: 0.7s; opacity: 0; }
+
+    .shimmer-bg {
+      background: linear-gradient(90deg, #1a1a2e 25%, #2a2a4e 50%, #1a1a2e 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+
+    .magazine-shadow {
+      box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .text-outline {
+      text-shadow:
+        0 2px 20px rgba(0, 0, 0, 0.8),
+        0 0 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .glass {
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-light {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .gradient-border {
+      position: relative;
+    }
+    .gradient-border::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent, rgba(255,255,255,0.1));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    body::-webkit-scrollbar { width: 6px; }
+    body::-webkit-scrollbar-track { background: #0a0a1a; }
+    body::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="bg-[#0a0a1a] text-white">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    // ========================================
+    // 🔧 Constants & Mock Data
+    // ========================================
+
+    const NASA_API_KEY = '0a930db1-f966-40f8-ac3e-00e15b6404fd';
+    const APOD_URL = `https://api.nasa.gov/planetary/apod`;
+
+    const MOCK_DATA = {
+      title: "The Horsehead Nebula in Infrared",
+      date: "2026-03-31",
+      explanation: "One of the most identifiable nebulae in the sky, the Horsehead Nebula in Orion, is part of a large, dark, molecular cloud. Also known as Barnard 33, the unusual shape was first discovered on a photographic plate in the late 1800s. The red glow originates from hydrogen gas predominantly behind the nebula, ionized by the nearby bright star Sigma Orionis. The darkness of the Horsehead is caused mostly by thick dust, although the lower part of the Horsehead's neck casts a shadow to the left. Streams of gas leaving the nebula are funneled by a strong magnetic field. Bright spots in the Horsehead Nebula's base are young stars just in the process of forming. Light takes about 1,500 years to reach us from the Horsehead Nebula.",
+      url: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=90",
+      hdurl: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=3840&q=95",
+      media_type: "image",
+      copyright: "NASA / ESA / Hubble Heritage Team"
+    };
+
+    const RECENT_MOCK = [
+      {
+        title: "Spiral Galaxy NGC 1300",
+        date: "2026-03-30",
+        url: "https://images.unsplash.com/photo-1543722530-d2c3201371e7?w=800&q=80",
+        media_type: "image"
+      },
+      {
+        title: "Aurora Over Iceland",
+        date: "2026-03-29",
+        url: "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&q=80",
+        media_type: "image"
+      },
+      {
+        title: "The Milky Way Over Monument Valley",
+        date: "2026-03-28",
+        url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80",
+        media_type: "image"
+      },
+      {
+        title: "Saturn's Rings in Detail",
+        date: "2026-03-27",
+        url: "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?w=800&q=80",
+        media_type: "image"
+      },
+      {
+        title: "Pillars of Creation",
+        date: "2026-03-26",
+        url: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=800&q=80",
+        media_type: "image"
+      }
+    ];
+
+    // ========================================
+    // 🔬 APOD 분석 엔진 — 설명에서 특징 & 거리 추출
+    // ========================================
+
+    const OBJECT_TYPES = [
+      { pattern: /nebula[es]?/i, type: '성운', icon: '🌫️', category: 'nebula' },
+      { pattern: /galaxy|galaxies/i, type: '은하', icon: '🌀', category: 'galaxy' },
+      { pattern: /supernova[es]?/i, type: '초신성', icon: '💥', category: 'supernova' },
+      { pattern: /black hole/i, type: '블랙홀', icon: '🕳️', category: 'blackhole' },
+      { pattern: /planet(?!ary)/i, type: '행성', icon: '🪐', category: 'planet' },
+      { pattern: /moon(?!light|lit)/i, type: '위성', icon: '🌙', category: 'moon' },
+      { pattern: /sun(?!set|rise|day|light|lit)|solar(?!\s+system)/i, type: '태양', icon: '☀️', category: 'sun' },
+      { pattern: /comet/i, type: '혜성', icon: '☄️', category: 'comet' },
+      { pattern: /asteroid/i, type: '소행성', icon: '🪨', category: 'asteroid' },
+      { pattern: /aurora[es]?|northern lights|southern lights/i, type: '오로라', icon: '🌌', category: 'aurora' },
+      { pattern: /star cluster|cluster of stars/i, type: '성단', icon: '✨', category: 'cluster' },
+      { pattern: /milky way/i, type: '우리 은하', icon: '🌌', category: 'milkyway' },
+      { pattern: /eclipse/i, type: '일/월식', icon: '🌑', category: 'eclipse' },
+      { pattern: /meteor|shooting star/i, type: '유성', icon: '🌠', category: 'meteor' },
+      { pattern: /pulsar/i, type: '펄서', icon: '💫', category: 'pulsar' },
+      { pattern: /quasar/i, type: '퀘이사', icon: '🔆', category: 'quasar' },
+      { pattern: /mars\b/i, type: '화성', icon: '🔴', category: 'planet' },
+      { pattern: /jupiter/i, type: '목성', icon: '🟠', category: 'planet' },
+      { pattern: /saturn/i, type: '토성', icon: '🪐', category: 'planet' },
+      { pattern: /venus/i, type: '금성', icon: '🟡', category: 'planet' },
+      { pattern: /mercury/i, type: '수성', icon: '⚫', category: 'planet' },
+      { pattern: /neptune/i, type: '해왕성', icon: '🔵', category: 'planet' },
+      { pattern: /uranus/i, type: '천왕성', icon: '🫧', category: 'planet' },
+      { pattern: /pluto/i, type: '명왕성', icon: '⚪', category: 'planet' },
+      { pattern: /ISS|space station/i, type: '국제우주정거장', icon: '🛰️', category: 'iss' },
+      { pattern: /star(?!t|dust|board|fish)/i, type: '항성', icon: '⭐', category: 'star' },
+    ];
+
+    const FEATURE_PATTERNS = [
+      { pattern: /infrared/i, label: '적외선 촬영' },
+      { pattern: /ultraviolet|UV\b/i, label: '자외선 촬영' },
+      { pattern: /X-ray/i, label: 'X선 촬영' },
+      { pattern: /radio\s+(wave|image|telescope|emission)/i, label: '전파 관측' },
+      { pattern: /hubble/i, label: '허블 망원경' },
+      { pattern: /webb|JWST/i, label: '제임스 웹 망원경' },
+      { pattern: /chandra/i, label: '찬드라 관측소' },
+      { pattern: /spitzer/i, label: '스피처 망원경' },
+      { pattern: /hydrogen|H-alpha/i, label: '수소 방출' },
+      { pattern: /oxygen/i, label: '산소 감지' },
+      { pattern: /magnetic field/i, label: '자기장' },
+      { pattern: /dark matter/i, label: '암흑물질' },
+      { pattern: /dark energy/i, label: '암흑에너지' },
+      { pattern: /gravity|gravitational/i, label: '중력 효과' },
+      { pattern: /supermassive/i, label: '초거대질량' },
+      { pattern: /spiral arm/i, label: '나선팔 구조' },
+      { pattern: /dust/i, label: '우주 먼지' },
+      { pattern: /ionize|ionization/i, label: '이온화 영역' },
+      { pattern: /young stars|star.?form/i, label: '별 생성 영역' },
+      { pattern: /collision|colliding|merger/i, label: '충돌/병합' },
+      { pattern: /tail(?!or)/i, label: '꼬리 구조' },
+      { pattern: /ring(?!s?\s+nebula)/i, label: '고리 구조' },
+      { pattern: /crater/i, label: '분화구' },
+      { pattern: /rover|lander/i, label: '탐사 로버' },
+      { pattern: /telescope/i, label: '망원경 관측' },
+      { pattern: /composite|mosaic/i, label: '합성 이미지' },
+      { pattern: /time.?lapse/i, label: '타임랩스' },
+      { pattern: /panoram/i, label: '파노라마' },
+    ];
+
+    const DISTANCE_PATTERNS = [
+      // "약 1,500 광년" 등 숫자 + 단위
+      { pattern: /about\s+([\d,.]+)\s*(million|billion|trillion)?\s*(light.?years?)/i, unit: 'ly' },
+      { pattern: /([\d,.]+)\s*(million|billion|trillion)?\s*(light.?years?)\s*(away|from|distant|far)/i, unit: 'ly' },
+      { pattern: /distance\s+(?:of\s+)?([\d,.]+)\s*(million|billion|trillion)?\s*(light.?years?)/i, unit: 'ly' },
+      { pattern: /([\d,.]+)\s*(million|billion|trillion)?\s*(parsecs?|pc)\b/i, unit: 'pc' },
+      { pattern: /([\d,.]+)\s*(million|billion|trillion)?\s*(kilometers?|km)\s*(away|from|distant)?/i, unit: 'km' },
+      { pattern: /([\d,.]+)\s*(million|billion|trillion)?\s*(miles?)\s*(away|from|distant)?/i, unit: 'mi' },
+      { pattern: /([\d,.]+)\s*(AU|astronomical units?)/i, unit: 'au' },
+      { pattern: /light\s+takes?\s+(?:about\s+)?([\d,.]+)\s*(years?|months?|minutes?|seconds?|hours?)/i, unit: 'light-time' },
+    ];
+
+    function analyzeApodData(title, explanation) {
+      const text = (title + ' ' + explanation).replace(/\s+/g, ' ');
+
+      // 천체 유형 추출
+      const detectedTypes = [];
+      for (const obj of OBJECT_TYPES) {
+        if (obj.pattern.test(text) && !detectedTypes.find(d => d.type === obj.type)) {
+          detectedTypes.push(obj);
+        }
+        if (detectedTypes.length >= 3) break;
+      }
+
+      // 특징 추출
+      const features = [];
+      for (const feat of FEATURE_PATTERNS) {
+        if (feat.pattern.test(text) && !features.includes(feat.label)) {
+          features.push(feat.label);
+        }
+        if (features.length >= 5) break;
+      }
+
+      // 거리 추출
+      let distance = null;
+      for (const dp of DISTANCE_PATTERNS) {
+        const match = text.match(dp.pattern);
+        if (match) {
+          if (dp.unit === 'light-time') {
+            const val = parseFloat(match[1].replace(/,/g, ''));
+            const timeUnit = match[2].toLowerCase();
+            distance = formatLightTimeDistance(val, timeUnit);
+          } else {
+            const rawVal = parseFloat(match[1].replace(/,/g, ''));
+            const multiplier = match[2] ? getMultiplier(match[2]) : 1;
+            const val = rawVal * multiplier;
+            distance = formatDistance(val, dp.unit);
+          }
+          break;
+        }
+      }
+
+      // 타이틀 기반 보완 추출
+      if (detectedTypes.length === 0) {
+        detectedTypes.push({ type: '우주', icon: '🔭', category: 'space' });
+      }
+
+      return { types: detectedTypes, features, distance };
+    }
+
+    function getMultiplier(word) {
+      if (!word) return 1;
+      switch (word.toLowerCase()) {
+        case 'million': return 1e6;
+        case 'billion': return 1e9;
+        case 'trillion': return 1e12;
+        default: return 1;
+      }
+    }
+
+    function formatDistance(value, unit) {
+      switch (unit) {
+        case 'ly': {
+          const km = value * 9.461e12;
+          return {
+            original: `${formatNumber(value)} 광년`,
+            km: `${formatNumber(km)} km`,
+            description: getDistanceDescription(value, 'ly'),
+            lightYears: value,
+          };
+        }
+        case 'pc': {
+          const ly = value * 3.2616;
+          const km = ly * 9.461e12;
+          return {
+            original: `${formatNumber(ly)} 광년`,
+            km: `${formatNumber(km)} km`,
+            description: getDistanceDescription(ly, 'ly'),
+            lightYears: ly,
+          };
+        }
+        case 'km': {
+          const ly = value / 9.461e12;
+          return {
+            original: ly > 0.01 ? `${formatNumber(ly)} 광년` : `${formatNumber(value)} km`,
+            km: `${formatNumber(value)} km`,
+            description: getDistanceDescription(value, 'km'),
+            lightYears: ly,
+          };
+        }
+        case 'mi': {
+          const km = value * 1.60934;
+          const ly = km / 9.461e12;
+          return {
+            original: ly > 0.01 ? `${formatNumber(ly)} 광년` : `${formatNumber(km)} km`,
+            km: `${formatNumber(km)} km`,
+            description: getDistanceDescription(km, 'km'),
+            lightYears: ly,
+          };
+        }
+        case 'au': {
+          const km = value * 1.496e8;
+          const ly = km / 9.461e12;
+          return {
+            original: `${formatNumber(value)} AU`,
+            km: `${formatNumber(km)} km`,
+            description: getDistanceDescription(value, 'au'),
+            lightYears: ly,
+          };
+        }
+        default:
+          return { original: `${formatNumber(value)}`, km: '', description: '', lightYears: 0 };
+      }
+    }
+
+    function formatLightTimeDistance(value, timeUnit) {
+      let ly;
+      switch (timeUnit) {
+        case 'year': case 'years': ly = value; break;
+        case 'month': case 'months': ly = value / 12; break;
+        case 'hour': case 'hours': ly = value / 8766; break;
+        case 'minute': case 'minutes': ly = value / 525960; break;
+        case 'second': case 'seconds': ly = value / 3.156e7; break;
+        default: ly = value;
+      }
+      const km = ly * 9.461e12;
+      return {
+        original: `${formatNumber(ly)} 광년`,
+        km: `${formatNumber(km)} km`,
+        description: getDistanceDescription(ly, 'ly'),
+        lightYears: ly,
+      };
+    }
+
+    function formatNumber(num) {
+      if (num >= 1e12) return (num / 1e12).toFixed(1) + '조';
+      if (num >= 1e8) return (num / 1e8).toFixed(1) + '억';
+      if (num >= 1e4) return (num / 1e4).toFixed(1) + '만';
+      if (num >= 1000) return num.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+      if (num >= 1) return num.toFixed(1);
+      if (num >= 0.001) return num.toFixed(3);
+      return num.toExponential(1);
+    }
+
+    function getDistanceDescription(value, unit) {
+      if (unit === 'ly') {
+        if (value < 0.001) return '태양계 내부에 위치';
+        if (value < 1) return '태양 근방의 이웃 항성 거리';
+        if (value < 100) return '우리 은하 태양 근방';
+        if (value < 1000) return '우리 은하 팔 내부';
+        if (value < 100000) return '우리 은하 내부';
+        if (value < 200000) return '우리 은하 경계';
+        if (value < 3e6) return '국부 은하군 영역';
+        if (value < 1e8) return '관측 가능한 우주 중거리';
+        return '극심원 우주 영역';
+      }
+      if (unit === 'km') {
+        if (value < 4e5) return '달보다 가까운 거리';
+        if (value < 1.5e8) return '태양계 내행성 거리';
+        if (value < 6e9) return '태양계 외행성 거리';
+        if (value < 1e13) return '태양계 외곽';
+        return '항성간 거리';
+      }
+      if (unit === 'au') {
+        if (value < 1) return '지구 궤도 이내';
+        if (value < 5.2) return '태양계 내행성 영역';
+        if (value < 40) return '태양계 외행성 영역';
+        if (value < 100000) return '태양계 외곽 (오르트 구름)';
+        return '항성간 공간';
+      }
+      return '';
+    }
+
+    // ========================================
+    // 🎨 Design System Components
+    // ========================================
+
+    function LoadingSkeleton() {
+      return (
+        <div className="min-h-screen bg-[#0a0a1a] flex items-center justify-center">
+          <div className="text-center">
+            <div className="relative w-20 h-20 mx-auto mb-8">
+              <div className="absolute inset-0 rounded-full border-2 border-white/10"></div>
+              <div className="absolute inset-0 rounded-full border-2 border-t-white/80 animate-spin"></div>
+              <div className="absolute inset-3 rounded-full border-2 border-white/5"></div>
+              <div className="absolute inset-3 rounded-full border-2 border-t-blue-400/60 animate-spin" style={{animationDirection: 'reverse', animationDuration: '1.5s'}}></div>
+            </div>
+            <p className="font-display text-2xl tracking-[0.3em] text-white/40">LOADING</p>
+            <p className="text-sm text-white/20 mt-2 font-sans tracking-widest">FROM THE COSMOS</p>
+          </div>
+        </div>
+      );
+    }
+
+    function ErrorState({ message, onRetry }) {
+      return (
+        <div className="min-h-screen bg-[#0a0a1a] flex items-center justify-center p-6">
+          <div className="text-center max-w-md">
+            <div className="text-6xl mb-6">🌑</div>
+            <h2 className="font-serif text-2xl mb-3">신호를 잃었습니다</h2>
+            <p className="text-white/50 font-sans text-sm leading-relaxed mb-6">{message}</p>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="px-6 py-2.5 rounded-full glass-light text-sm font-sans tracking-wide hover:bg-white/10 transition-all"
+              >
+                다시 시도
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function DateBadge({ date }) {
+      const d = new Date(date + 'T00:00:00');
+      const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+      const day = d.getDate();
+      const year = d.getFullYear();
+      return (
+        <div className="text-center">
+          <div className="font-display text-5xl md:text-6xl leading-none tracking-wider">{day}</div>
+          <div className="font-sans text-xs tracking-[0.3em] text-white/60 mt-1">{month} {year}</div>
+        </div>
+      );
+    }
+
+    function Divider() {
+      return (
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+          <div className="w-1.5 h-1.5 rounded-full bg-white/30"></div>
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 📄 MagazineCover — 메인 잡지 표지 레이아웃
+    // ========================================
+
+    function ObjectInfoPanel({ analysis, compact = false }) {
+      if (!analysis) return null;
+      const { types, features, distance } = analysis;
+
+      if (compact) {
+        return (
+          <div className="flex flex-wrap gap-2">
+            {types.map((t, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-light text-xs font-sans">
+                <span>{t.icon}</span>
+                <span className="text-white/80">{t.type}</span>
+              </span>
+            ))}
+            {distance && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-light text-xs font-sans">
+                <span>📏</span>
+                <span className="text-white/80">{distance.original}</span>
+              </span>
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-4">
+          {/* 천체 유형 */}
+          <div>
+            <span className="font-sans text-[10px] tracking-[0.3em] text-white/30 uppercase block mb-2">천체 유형</span>
+            <div className="flex flex-wrap gap-2">
+              {types.map((t, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm font-sans">
+                  <span>{t.icon}</span>
+                  <span className="text-white/90">{t.type}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 거리 정보 */}
+          {distance && (
+            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-400/10">
+              <span className="font-sans text-[10px] tracking-[0.3em] text-blue-300/50 uppercase block mb-2">지구로부터의 거리</span>
+              <div className="font-display text-3xl tracking-wider text-blue-200 mb-1">{distance.original}</div>
+              <div className="font-sans text-xs text-white/40 mb-2">{distance.km}</div>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="w-2 h-2 rounded-full bg-blue-400/60 flex-shrink-0"></div>
+                <span className="font-sans text-xs text-white/50">{distance.description}</span>
+              </div>
+              {distance.lightYears > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/5">
+                  <DistanceVisual lightYears={distance.lightYears} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 주요 특징 */}
+          {features.length > 0 && (
+            <div>
+              <span className="font-sans text-[10px] tracking-[0.3em] text-white/30 uppercase block mb-2">관측 특징</span>
+              <div className="flex flex-wrap gap-1.5">
+                {features.map((f, i) => (
+                  <span key={i} className="px-2.5 py-1 rounded-full bg-white/5 text-[11px] font-sans text-white/60 border border-white/5">
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function DistanceVisual({ lightYears }) {
+      // 로그 스케일로 우주 거리 시각화
+      const logScale = lightYears > 0 ? Math.log10(lightYears) : 0;
+      // 범위: -3 (태양계 내) ~ 11 (관측 가능 우주 끝 ~460억 광년)
+      const percentage = Math.min(Math.max(((logScale + 3) / 14) * 100, 1), 99);
+
+      const landmarks = [
+        { pos: 0, label: '지구' },
+        { pos: 21, label: '태양계' },
+        { pos: 36, label: '이웃 항성' },
+        { pos: 57, label: '은하 내부' },
+        { pos: 78, label: '국부 은하군' },
+        { pos: 100, label: '관측 한계' },
+      ];
+
+      return (
+        <div>
+          <div className="relative h-2 rounded-full bg-white/5 overflow-hidden">
+            <div
+              className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000"
+              style={{ width: `${percentage}%` }}
+            ></div>
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-lg shadow-blue-500/50 transition-all duration-1000"
+              style={{ left: `calc(${percentage}% - 6px)` }}
+            ></div>
+          </div>
+          <div className="relative mt-1.5 flex justify-between">
+            {landmarks.map((lm, i) => (
+              <span key={i} className="font-sans text-[8px] text-white/25" style={{position: i === 0 || i === landmarks.length - 1 ? 'relative' : 'absolute', left: i === 0 || i === landmarks.length - 1 ? undefined : `${lm.pos}%`, transform: i > 0 && i < landmarks.length - 1 ? 'translateX(-50%)' : undefined}}>
+                {lm.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 📄 MagazineCover — 메인 잡지 표지 레이아웃
+    // ========================================
+
+    function MagazineCover({ data, onOpenDetail }) {
+      const [imageLoaded, setImageLoaded] = useState(false);
+      const analysis = useMemo(() => analyzeApodData(data.title, data.explanation || ''), [data]);
+
+      return (
+        <section className="relative min-h-screen overflow-hidden">
+          {/* 배경 이미지 */}
+          <div className="absolute inset-0">
+            <img
+              src={data.url}
+              alt={data.title}
+              className={`w-full h-full object-cover transition-all duration-[2s] ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
+              onLoad={() => setImageLoaded(true)}
+            />
+            {/* 오버레이 그라데이션 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a1a] via-[#0a0a1a]/40 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a1a]/60 via-transparent to-[#0a0a1a]/30"></div>
+            <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-[#0a0a1a] to-transparent"></div>
+          </div>
+
+          {/* 잡지 로고 헤더 */}
+          <header className="relative z-10 pt-8 md:pt-12 px-6 md:px-12">
+            <div className="max-w-7xl mx-auto animate-slide-down">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="font-display text-5xl md:text-7xl lg:text-8xl tracking-[0.15em] text-outline">
+                    COSMOS
+                  </h1>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="font-sans text-[10px] tracking-[0.4em] text-white/50 uppercase">Astronomy Picture of the Day</span>
+                    <span className="w-8 h-px bg-white/30"></span>
+                    <span className="font-sans text-[10px] tracking-[0.4em] text-white/50">by NASA</span>
+                  </div>
+                </div>
+                <div className="hidden md:block text-right animate-fade-in delay-300">
+                  <DateBadge date={data.date} />
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* 메인 콘텐츠 */}
+          <div className="relative z-10 min-h-[70vh] flex items-end pb-16 md:pb-24 px-6 md:px-12">
+            <div className="max-w-7xl mx-auto w-full">
+              <div className="grid md:grid-cols-12 gap-8 items-end">
+                {/* 왼쪽: 타이틀 영역 */}
+                <div className="md:col-span-8 lg:col-span-7">
+                  {/* 모바일 날짜 */}
+                  <div className="md:hidden mb-6 animate-fade-up delay-100">
+                    <DateBadge date={data.date} />
+                  </div>
+
+                  <div className="animate-fade-up delay-200">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="inline-block w-10 h-px bg-blue-400/80"></span>
+                      <span className="font-sans text-xs tracking-[0.3em] text-blue-400/80 uppercase">Today's Feature</span>
+                    </div>
+                  </div>
+
+                  <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.1] text-outline animate-fade-up delay-300">
+                    {data.title}
+                  </h2>
+
+                  <div className="animate-fade-up delay-400">
+                    <p className="font-sans text-sm md:text-base text-white/60 leading-relaxed mt-6 max-w-xl line-clamp-3">
+                      {data.explanation}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 mt-8 animate-fade-up delay-500">
+                    <button
+                      onClick={onOpenDetail}
+                      className="group flex items-center gap-3 px-7 py-3.5 rounded-full bg-white text-black font-sans text-sm font-medium tracking-wide hover:bg-white/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <span>자세히 보기</span>
+                      <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </button>
+                    <a
+                      href={data.hdurl || data.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-6 py-3.5 rounded-full glass-light font-sans text-sm tracking-wide hover:bg-white/10 transition-all"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>HD 원본</span>
+                    </a>
+                  </div>
+
+                  {/* 모바일: 간략 분석 태그 */}
+                  <div className="lg:hidden mt-6 animate-fade-up delay-600">
+                    <ObjectInfoPanel analysis={analysis} compact={true} />
+                  </div>
+
+                  {data.copyright && (
+                    <p className="font-sans text-xs text-white/30 mt-6 animate-fade-up delay-600">
+                      © {data.copyright}
+                    </p>
+                  )}
+                </div>
+
+                {/* 오른쪽: 사이드 인포 + 분석 패널 */}
+                <div className="hidden lg:block lg:col-span-5 space-y-4">
+                  <div className="glass rounded-2xl p-6 gradient-border animate-fade-up delay-600">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                      <span className="font-sans text-xs tracking-[0.2em] text-white/40 uppercase">Live from NASA</span>
+                    </div>
+                    <div className="space-y-3 mb-5">
+                      <div className="flex justify-between items-center py-2 border-b border-white/5">
+                        <span className="font-sans text-xs text-white/40">Media</span>
+                        <span className="font-sans text-sm text-white/80 capitalize">{data.media_type}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-white/5">
+                        <span className="font-sans text-xs text-white/40">Date</span>
+                        <span className="font-sans text-sm text-white/80">{data.date}</span>
+                      </div>
+                      {data.copyright && (
+                        <div className="flex justify-between items-center py-2 border-b border-white/5">
+                          <span className="font-sans text-xs text-white/40">Credit</span>
+                          <span className="font-sans text-sm text-white/80 text-right max-w-[200px]">{data.copyright}</span>
+                        </div>
+                      )}
+                    </div>
+                    <ObjectInfoPanel analysis={analysis} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 스크롤 인디케이터 */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 animate-fade-in delay-700">
+            <div className="flex flex-col items-center gap-2 text-white/30">
+              <span className="font-sans text-[10px] tracking-[0.3em] uppercase">Scroll</span>
+              <div className="w-px h-8 bg-gradient-to-b from-white/30 to-transparent animate-bounce"></div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    // ========================================
+    // 📄 DetailModal — 상세 보기 모달
+    // ========================================
+
+    function DetailModal({ data, isOpen, onClose }) {
+      const overlayRef = useRef(null);
+      const analysis = useMemo(() => data ? analyzeApodData(data.title, data.explanation || '') : null, [data]);
+
+      useEffect(() => {
+        if (isOpen) {
+          document.body.style.overflow = 'hidden';
+        } else {
+          document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+      }, [isOpen]);
+
+      useEffect(() => {
+        function handleKey(e) {
+          if (e.key === 'Escape') onClose();
+        }
+        if (isOpen) window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+      }, [isOpen, onClose]);
+
+      if (!isOpen) return null;
+
+      return (
+        <div
+          ref={overlayRef}
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto"
+          onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+        >
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-fade-in"></div>
+
+          <div className="relative z-10 w-full max-w-4xl mx-4 my-8 md:my-16 animate-fade-up">
+            {/* 닫기 버튼 */}
+            <button
+              onClick={onClose}
+              className="absolute -top-12 right-0 md:right-0 text-white/50 hover:text-white transition-colors flex items-center gap-2"
+              aria-label="닫기"
+            >
+              <span className="font-sans text-xs tracking-widest uppercase">Close</span>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="glass rounded-3xl overflow-hidden magazine-shadow">
+              {/* 이미지 */}
+              <div className="relative aspect-video md:aspect-[16/9] overflow-hidden">
+                {data.media_type === 'video' ? (
+                  <iframe
+                    src={data.url}
+                    className="w-full h-full"
+                    allowFullScreen
+                    title={data.title}
+                  />
+                ) : (
+                  <img
+                    src={data.hdurl || data.url}
+                    alt={data.title}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              </div>
+
+              {/* 텍스트 콘텐츠 */}
+              <div className="p-8 md:p-12">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="inline-block w-8 h-px bg-blue-400/80"></span>
+                  <span className="font-sans text-xs tracking-[0.3em] text-blue-400/80 uppercase">{data.date}</span>
+                </div>
+
+                <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl font-bold leading-tight mb-6">
+                  {data.title}
+                </h2>
+
+                {/* 천체 분석 정보 */}
+                {analysis && (
+                  <div className="mb-6">
+                    <ObjectInfoPanel analysis={analysis} compact={false} />
+                  </div>
+                )}
+
+                <Divider />
+
+                <p className="font-sans text-sm md:text-base text-white/70 leading-[1.9] tracking-wide">
+                  {data.explanation}
+                </p>
+
+                {data.copyright && (
+                  <div className="mt-8 pt-6 border-t border-white/10">
+                    <p className="font-sans text-xs text-white/40">
+                      Image Credit & Copyright: <span className="text-white/60">{data.copyright}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 📄 RecentSection — 최근 사진 갤러리
+    // ========================================
+
+    function RecentSection({ items, onSelect }) {
+      return (
+        <section className="relative py-24 px-6 md:px-12">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-12">
+              <div>
+                <span className="font-sans text-xs tracking-[0.3em] text-white/40 uppercase block mb-3">Archive</span>
+                <h3 className="font-serif text-3xl md:text-4xl font-bold">최근 우주 사진</h3>
+              </div>
+              <div className="hidden md:block">
+                <span className="font-sans text-sm text-white/40">지난 며칠간의 기록</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+              {items.map((item, i) => (
+                <button
+                  key={item.date}
+                  onClick={() => onSelect(item)}
+                  className="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer"
+                >
+                  <img
+                    src={item.url}
+                    alt={item.title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="absolute inset-0 border border-white/0 group-hover:border-white/20 rounded-2xl transition-all"></div>
+
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <p className="font-sans text-[10px] tracking-[0.2em] text-white/50 uppercase mb-1">{item.date}</p>
+                    <h4 className="font-serif text-sm font-semibold leading-tight line-clamp-2 group-hover:text-blue-200 transition-colors">
+                      {item.title}
+                    </h4>
+                  </div>
+
+                  <div className="absolute top-3 right-3 w-8 h-8 rounded-full glass-light flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    // ========================================
+    // 📄 DatePicker — 날짜 선택
+    // ========================================
+
+    function DatePicker({ selectedDate, onChange }) {
+      return (
+        <section className="relative py-16 px-6 md:px-12">
+          <div className="max-w-7xl mx-auto">
+            <div className="glass rounded-2xl p-8 md:p-12 gradient-border text-center">
+              <span className="font-sans text-xs tracking-[0.3em] text-white/40 uppercase block mb-3">Time Travel</span>
+              <h3 className="font-serif text-2xl md:text-3xl font-bold mb-2">다른 날의 우주를 탐험하세요</h3>
+              <p className="font-sans text-sm text-white/40 mb-8">1995년 6월 16일부터 오늘까지의 우주 사진을 볼 수 있습니다</p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => onChange(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  min="1995-06-16"
+                  className="px-6 py-3 rounded-full bg-white/5 border border-white/10 text-white font-sans text-sm focus:outline-none focus:border-white/30 transition-colors cursor-pointer"
+                />
+                <button
+                  onClick={() => onChange(selectedDate)}
+                  className="px-8 py-3 rounded-full bg-white text-black font-sans text-sm font-medium tracking-wide hover:bg-white/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  탐험하기
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    // ========================================
+    // 📄 Footer
+    // ========================================
+
+    function Footer() {
+      return (
+        <footer className="relative py-12 px-6 md:px-12 border-t border-white/5">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="font-display text-2xl tracking-[0.15em]">COSMOS</span>
+              <span className="text-white/20">|</span>
+              <span className="font-sans text-xs text-white/30 tracking-wide">Powered by NASA APOD API</span>
+            </div>
+            <p className="font-sans text-xs text-white/20">
+              Data provided by NASA's Astronomy Picture of the Day service
+            </p>
+          </div>
+        </footer>
+      );
+    }
+
+    // ========================================
+    // 🚀 App Component
+    // ========================================
+
+    function App() {
+      const [todayData, setTodayData] = useState(null);
+      const [recentData, setRecentData] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const [detailOpen, setDetailOpen] = useState(false);
+      const [detailData, setDetailData] = useState(null);
+      const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+      const fetchApod = useCallback(async (date) => {
+        setLoading(true);
+        setError(null);
+        try {
+          const res = await fetch(`${APOD_URL}?api_key=${NASA_API_KEY}&date=${date}`);
+          if (!res.ok) throw new Error('Failed to fetch');
+          const data = await res.json();
+          setTodayData(data);
+        } catch (err) {
+          console.warn('API fetch failed, using mock data:', err.message);
+          setTodayData(MOCK_DATA);
+          setRecentData(RECENT_MOCK);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      const fetchRecent = useCallback(async () => {
+        try {
+          const end = new Date();
+          const start = new Date();
+          start.setDate(end.getDate() - 5);
+          const startStr = start.toISOString().split('T')[0];
+          const endStr = end.toISOString().split('T')[0];
+          const res = await fetch(`${APOD_URL}?api_key=${NASA_API_KEY}&start_date=${startStr}&end_date=${endStr}`);
+          if (!res.ok) throw new Error('Failed to fetch recent');
+          const data = await res.json();
+          setRecentData(data.reverse().slice(1));
+        } catch (err) {
+          console.warn('Recent fetch failed, using mock data');
+          setRecentData(RECENT_MOCK);
+        }
+      }, []);
+
+      useEffect(() => {
+        fetchApod(selectedDate);
+        fetchRecent();
+      }, []);
+
+      const handleDateChange = useCallback((date) => {
+        setSelectedDate(date);
+        fetchApod(date);
+      }, [fetchApod]);
+
+      const handleOpenDetail = useCallback((data) => {
+        setDetailData(data || todayData);
+        setDetailOpen(true);
+      }, [todayData]);
+
+      const handleCloseDetail = useCallback(() => {
+        setDetailOpen(false);
+      }, []);
+
+      if (loading) return <LoadingSkeleton />;
+      if (error && !todayData) return <ErrorState message={error} onRetry={() => fetchApod(selectedDate)} />;
+      if (!todayData) return null;
+
+      return (
+        <div className="min-h-screen">
+          <MagazineCover
+            data={todayData}
+            onOpenDetail={() => handleOpenDetail(todayData)}
+          />
+
+          {recentData.length > 0 && (
+            <RecentSection
+              items={recentData}
+              onSelect={(item) => handleOpenDetail(item)}
+            />
+          )}
+
+          <DatePicker
+            selectedDate={selectedDate}
+            onChange={handleDateChange}
+          />
+
+          <Footer />
+
+          <DetailModal
+            data={detailData || todayData}
+            isOpen={detailOpen}
+            onClose={handleCloseDetail}
+          />
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🔄 Rendering
+    // ========================================
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

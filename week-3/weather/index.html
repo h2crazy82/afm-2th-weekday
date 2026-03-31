@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>날씨 앱</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ========================================
+    // 🔑 API 설정
+    // ========================================
+    const API_KEY = "1d5926b624ef458b103acdefc47d5cbc";
+    const API_BASE = "https://api.openweathermap.org/data/2.5";
+    const SEOUL_OFFSET_SEC = 9 * 3600; // 서울 UTC+9 (초 단위)
+
+    // 한국어 → 영어 도시명 매핑
+    const CITY_NAME_MAP = {
+      "서울": "Seoul", "부산": "Busan", "인천": "Incheon", "대구": "Daegu",
+      "대전": "Daejeon", "광주": "Gwangju", "울산": "Ulsan", "제주": "Jeju",
+      "도쿄": "Tokyo", "오사카": "Osaka", "뉴욕": "New York", "런던": "London",
+      "파리": "Paris", "시드니": "Sydney", "베이징": "Beijing", "방콕": "Bangkok",
+      "두바이": "Dubai", "모스크바": "Moscow", "로스앤젤레스": "Los Angeles",
+      "싱가포르": "Singapore", "홍콩": "Hong Kong", "상하이": "Shanghai",
+      "타이베이": "Taipei", "하노이": "Hanoi", "자카르타": "Jakarta",
+      "뭄바이": "Mumbai", "델리": "Delhi", "카이로": "Cairo",
+      "이스탄불": "Istanbul", "로마": "Rome", "베를린": "Berlin",
+      "마드리드": "Madrid", "암스테르담": "Amsterdam", "바르셀로나": "Barcelona",
+      "취리히": "Zurich", "빈": "Vienna", "프라하": "Prague",
+      "워싱턴": "Washington", "시카고": "Chicago", "샌프란시스코": "San Francisco",
+      "토론토": "Toronto", "밴쿠버": "Vancouver", "멜버른": "Melbourne",
+      "오클랜드": "Auckland", "호치민": "Ho Chi Minh City", "쿠알라룸푸르": "Kuala Lumpur",
+    };
+
+    function toCityQuery(input) {
+      return CITY_NAME_MAP[input] || input;
+    }
+
+    // 미세먼지 등급 매핑
+    const AQI_LEVELS = [
+      null,
+      { label: "좋음", color: "green", emoji: "😊" },
+      { label: "보통", color: "blue", emoji: "🙂" },
+      { label: "나쁨", color: "orange", emoji: "😷" },
+      { label: "매우 나쁨", color: "red", emoji: "🤢" },
+      { label: "위험", color: "purple", emoji: "☠️" },
+    ];
+
+    // 공통: 날씨 + 예보 + 미세먼지 조합
+    async function buildWeatherData(weather) {
+      const { lat, lon } = weather.coord;
+
+      const [forecastRes, airRes] = await Promise.all([
+        fetch(`${API_BASE}/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=kr`),
+        fetch(`${API_BASE}/air_pollution?lat=${lat}&lon=${lon}&appid=${API_KEY}`),
+      ]);
+
+      let forecast = [];
+      if (forecastRes.ok) {
+        const fData = await forecastRes.json();
+        forecast = fData.list.slice(0, 8).map(item => ({
+          dt: item.dt,
+          temp: Math.round(item.main.temp),
+          icon: item.weather[0].icon,
+          condition: item.weather[0].description,
+          pop: Math.round((item.pop || 0) * 100),
+        }));
+      }
+
+      let airQuality = null;
+      if (airRes.ok) {
+        const aData = await airRes.json();
+        const comp = aData.list[0].components;
+        airQuality = {
+          aqi: aData.list[0].main.aqi,
+          pm25: comp.pm2_5,
+          pm10: comp.pm10,
+          no2: comp.no2,
+          o3: comp.o3,
+          co: comp.co,
+        };
+      }
+
+      return {
+        cityName: weather.name,
+        country: weather.sys.country,
+        temp: Math.round(weather.main.temp),
+        feelsLike: Math.round(weather.main.feels_like),
+        humidity: weather.main.humidity,
+        wind: weather.wind.speed,
+        condition: weather.weather[0].description,
+        iconUrl: `https://openweathermap.org/img/wn/${weather.weather[0].icon}@4x.png`,
+        timezoneOffset: weather.timezone,
+        forecast,
+        airQuality,
+      };
+    }
+
+    // 도시명으로 검색
+    async function fetchWeather(city) {
+      const cityQuery = toCityQuery(city);
+      const weatherRes = await fetch(
+        `${API_BASE}/weather?q=${encodeURIComponent(cityQuery)}&appid=${API_KEY}&units=metric&lang=kr`
+      );
+      if (!weatherRes.ok) throw new Error(weatherRes.status === 404 ? "NOT_FOUND" : "API_ERROR");
+      return buildWeatherData(await weatherRes.json());
+    }
+
+    // 좌표로 검색 (내 위치)
+    async function fetchWeatherByCoords(lat, lon) {
+      const weatherRes = await fetch(
+        `${API_BASE}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=kr`
+      );
+      if (!weatherRes.ok) throw new Error("API_ERROR");
+      return buildWeatherData(await weatherRes.json());
+    }
+
+    // 브라우저 위치 정보 가져오기
+    function getCurrentPosition() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("GEO_UNSUPPORTED"));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          (err) => reject(new Error("GEO_DENIED")),
+          { timeout: 10000 }
+        );
+      });
+    }
+
+    // ========================================
+    // 🎨 Design System Components
+    // ========================================
+    function Card({ children, className = "" }) {
+      return (
+        <div className={`bg-white rounded-2xl shadow-lg p-6 ${className}`}>
+          {children}
+        </div>
+      );
+    }
+
+    function Input({ value, onChange, onKeyDown, placeholder, className = "" }) {
+      return (
+        <input
+          type="text"
+          value={value}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          className={`w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-gray-700 placeholder-gray-400 transition-all ${className}`}
+        />
+      );
+    }
+
+    function Button({ children, onClick, variant = "primary", size = "md", className = "" }) {
+      const base = "font-semibold rounded-xl transition-all active:scale-95";
+      const variants = {
+        primary: "bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg",
+        secondary: "bg-gray-100 hover:bg-gray-200 text-gray-700",
+        ghost: "bg-transparent hover:bg-gray-100 text-gray-600",
+      };
+      const sizes = {
+        sm: "px-3 py-1.5 text-sm",
+        md: "px-5 py-3 text-base",
+        lg: "px-6 py-3.5 text-lg",
+      };
+      return (
+        <button onClick={onClick} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}>
+          {children}
+        </button>
+      );
+    }
+
+    function Badge({ children, color = "blue", className = "" }) {
+      const colors = {
+        blue: "bg-blue-100 text-blue-700",
+        green: "bg-green-100 text-green-700",
+        orange: "bg-orange-100 text-orange-700",
+        red: "bg-red-100 text-red-700",
+        gray: "bg-gray-100 text-gray-600",
+        purple: "bg-purple-100 text-purple-700",
+      };
+      return (
+        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${colors[color]} ${className}`}>
+          {children}
+        </span>
+      );
+    }
+
+    // ========================================
+    // 🧩 Common Components
+    // ========================================
+    function Header() {
+      return (
+        <header className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">🌤️ 날씨 앱</h1>
+          <p className="text-gray-500">도시 이름을 입력하면 날씨와 시간 정보를 확인할 수 있어요</p>
+        </header>
+      );
+    }
+
+    function CityChips({ onSelect }) {
+      const cities = ["서울", "도쿄", "뉴욕", "런던", "파리", "시드니", "방콕", "두바이"];
+      return (
+        <div className="flex flex-wrap gap-2 justify-center mt-4">
+          {cities.map(city => (
+            <button
+              key={city}
+              onClick={() => onSelect(city)}
+              className="px-3 py-1.5 bg-white/70 hover:bg-white text-gray-600 hover:text-blue-600 rounded-full text-sm border border-gray-200 hover:border-blue-300 transition-all hover:shadow-sm"
+            >
+              {city}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ========================================
+    // 📄 Weather Result Components
+    // ========================================
+    function ClockDisplay({ timezoneOffset, cityName }) {
+      const [time, setTime] = useState("");
+
+      useEffect(() => {
+        function updateTime() {
+          const now = new Date();
+          const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+          const localMs = utcMs + timezoneOffset * 1000;
+          const localDate = new Date(localMs);
+          const h = String(localDate.getHours()).padStart(2, "0");
+          const m = String(localDate.getMinutes()).padStart(2, "0");
+          const s = String(localDate.getSeconds()).padStart(2, "0");
+          setTime(`${h}:${m}:${s}`);
+        }
+        updateTime();
+        const interval = setInterval(updateTime, 1000);
+        return () => clearInterval(interval);
+      }, [timezoneOffset]);
+
+      return (
+        <div className="text-center">
+          <p className="text-sm text-gray-500 mb-1">{cityName} 현지 시간</p>
+          <p className="text-3xl font-mono font-bold text-gray-800 tracking-wider">{time}</p>
+        </div>
+      );
+    }
+
+    function TimeDifference({ timezoneOffset }) {
+      const diffHours = (timezoneOffset - SEOUL_OFFSET_SEC) / 3600;
+      const sign = diffHours >= 0 ? "+" : "";
+      const badgeColor = diffHours === 0 ? "green" : Math.abs(diffHours) >= 10 ? "red" : "blue";
+      const label = Number.isInteger(diffHours)
+        ? `${sign}${diffHours}시간`
+        : `${sign}${diffHours.toFixed(1)}시간`;
+
+      return (
+        <div className="text-center">
+          <p className="text-sm text-gray-500 mb-2">서울과의 시차</p>
+          <Badge color={badgeColor} className="text-base px-4 py-1.5">
+            {diffHours === 0 ? "시차 없음" : label}
+          </Badge>
+        </div>
+      );
+    }
+
+    function LoadingSpinner() {
+      return (
+        <div className="fade-in flex flex-col items-center gap-4 py-12">
+          <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+          <p className="text-gray-500">날씨 정보를 불러오는 중...</p>
+        </div>
+      );
+    }
+
+    function WeatherDetail({ icon, label, value }) {
+      return (
+        <div className="flex flex-col items-center gap-1 p-3 bg-gray-50 rounded-xl">
+          <span className="text-xl">{icon}</span>
+          <span className="text-xs text-gray-500">{label}</span>
+          <span className="text-sm font-semibold text-gray-700">{value}</span>
+        </div>
+      );
+    }
+
+    function ForecastCard({ forecast, timezoneOffset }) {
+      if (!forecast || forecast.length === 0) return null;
+
+      function formatTime(dt) {
+        const utcMs = dt * 1000;
+        const localMs = utcMs + timezoneOffset * 1000;
+        const d = new Date(localMs);
+        const h = d.getUTCHours();
+        return `${h}시`;
+      }
+
+      return (
+        <Card className="fade-in max-w-md mx-auto mt-4">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">📅 오늘의 예보</h3>
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+            {forecast.map((item, i) => (
+              <div key={i} className="flex flex-col items-center min-w-[72px] p-2 bg-gray-50 rounded-xl shrink-0">
+                <span className="text-xs text-gray-500 font-medium">{formatTime(item.dt)}</span>
+                <img
+                  src={`https://openweathermap.org/img/wn/${item.icon}@2x.png`}
+                  alt={item.condition}
+                  className="w-10 h-10"
+                />
+                <span className="text-sm font-bold text-gray-800">{item.temp}°</span>
+                {item.pop > 0 && (
+                  <span className="text-xs text-blue-500 mt-0.5">💧{item.pop}%</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      );
+    }
+
+    function AirQualityCard({ airQuality }) {
+      if (!airQuality) return null;
+      const level = AQI_LEVELS[airQuality.aqi];
+      if (!level) return null;
+
+      const badgeColors = { green: "green", blue: "blue", orange: "orange", red: "red", purple: "purple" };
+
+      function pmLevel(type, val) {
+        if (type === "pm25") {
+          if (val <= 15) return { label: "좋음", color: "text-green-600", bg: "bg-green-500" };
+          if (val <= 35) return { label: "보통", color: "text-blue-600", bg: "bg-blue-500" };
+          if (val <= 75) return { label: "나쁨", color: "text-orange-600", bg: "bg-orange-500" };
+          return { label: "매우나쁨", color: "text-red-600", bg: "bg-red-500" };
+        }
+        // pm10
+        if (val <= 30) return { label: "좋음", color: "text-green-600", bg: "bg-green-500" };
+        if (val <= 80) return { label: "보통", color: "text-blue-600", bg: "bg-blue-500" };
+        if (val <= 150) return { label: "나쁨", color: "text-orange-600", bg: "bg-orange-500" };
+        return { label: "매우나쁨", color: "text-red-600", bg: "bg-red-500" };
+      }
+
+      const pm25Info = pmLevel("pm25", airQuality.pm25);
+      const pm10Info = pmLevel("pm10", airQuality.pm10);
+
+      function ProgressBar({ value, max, colorClass }) {
+        const pct = Math.min((value / max) * 100, 100);
+        return (
+          <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+            <div className={`h-2 rounded-full ${colorClass}`} style={{ width: `${pct}%` }}></div>
+          </div>
+        );
+      }
+
+      return (
+        <Card className="fade-in max-w-md mx-auto mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800">🌫️ 대기질</h3>
+            <Badge color={badgeColors[level.color]}>
+              {level.emoji} {level.label}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* PM2.5 */}
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">초미세먼지 (PM2.5)</span>
+                <span className={`text-xs font-bold ${pm25Info.color}`}>{pm25Info.label}</span>
+              </div>
+              <p className="text-xl font-bold text-gray-800 mt-1">{airQuality.pm25.toFixed(1)} <span className="text-xs text-gray-400">µg/m³</span></p>
+              <ProgressBar value={airQuality.pm25} max={75} colorClass={pm25Info.bg} />
+            </div>
+
+            {/* PM10 */}
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-500">미세먼지 (PM10)</span>
+                <span className={`text-xs font-bold ${pm10Info.color}`}>{pm10Info.label}</span>
+              </div>
+              <p className="text-xl font-bold text-gray-800 mt-1">{airQuality.pm10.toFixed(1)} <span className="text-xs text-gray-400">µg/m³</span></p>
+              <ProgressBar value={airQuality.pm10} max={150} colorClass={pm10Info.bg} />
+            </div>
+
+            {/* O3 */}
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <span className="text-xs text-gray-500">오존 (O₃)</span>
+              <p className="text-lg font-bold text-gray-800 mt-1">{airQuality.o3.toFixed(1)} <span className="text-xs text-gray-400">µg/m³</span></p>
+            </div>
+
+            {/* NO2 */}
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <span className="text-xs text-gray-500">이산화질소 (NO₂)</span>
+              <p className="text-lg font-bold text-gray-800 mt-1">{airQuality.no2.toFixed(1)} <span className="text-xs text-gray-400">µg/m³</span></p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    function WeatherCard({ data }) {
+      return (
+        <Card className="fade-in max-w-md mx-auto">
+          {/* 도시 이름 & 날씨 아이콘 */}
+          <div className="text-center mb-6">
+            <img src={data.iconUrl} alt={data.condition} className="w-28 h-28 mx-auto -my-2" />
+            <h2 className="text-2xl font-bold text-gray-800">{data.cityName}</h2>
+            <Badge color="gray" className="mt-1">{data.country}</Badge>
+            <p className="text-gray-500 mt-2 capitalize">{data.condition}</p>
+          </div>
+
+          {/* 온도 */}
+          <div className="text-center mb-6">
+            <span className="text-6xl font-bold text-gray-800">{data.temp}°</span>
+            <p className="text-gray-400 mt-1 text-sm">체감 {data.feelsLike}°</p>
+          </div>
+
+          {/* 상세 정보 */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <WeatherDetail icon="💧" label="습도" value={`${data.humidity}%`} />
+            <WeatherDetail icon="💨" label="바람" value={`${data.wind}m/s`} />
+            <WeatherDetail icon="🌡️" label="체감온도" value={`${data.feelsLike}°`} />
+          </div>
+
+          {/* 구분선 */}
+          <div className="border-t border-gray-100 my-5"></div>
+
+          {/* 시간 정보 */}
+          <div className="grid grid-cols-2 gap-4">
+            <ClockDisplay timezoneOffset={data.timezoneOffset} cityName={data.cityName} />
+            <TimeDifference timezoneOffset={data.timezoneOffset} />
+          </div>
+        </Card>
+      );
+    }
+
+    function ErrorCard({ city, errorType }) {
+      const messages = {
+        NOT_FOUND: { icon: "🔍", title: `"${city}" 도시를 찾을 수 없어요`, desc: "영어 또는 한국어로 도시 이름을 정확히 입력해 주세요" },
+        GEO_DENIED: { icon: "📍", title: "위치 접근이 차단되어 있어요", desc: "브라우저 설정에서 위치 권한을 허용하거나, 도시 이름을 직접 검색해 주세요" },
+        GEO_UNSUPPORTED: { icon: "📍", title: "이 브라우저는 위치 서비스를 지원하지 않아요", desc: "도시 이름을 직접 검색해 주세요" },
+        API_ERROR: { icon: "⚠️", title: "날씨 정보를 불러오지 못했어요", desc: "잠시 후 다시 시도해 주세요" },
+      };
+      const msg = messages[errorType] || messages.API_ERROR;
+
+      return (
+        <Card className="fade-in max-w-md mx-auto text-center">
+          <span className="text-5xl block mb-4">{msg.icon}</span>
+          <h2 className="text-xl font-bold text-gray-700 mb-2">{msg.title}</h2>
+          <p className="text-gray-500 text-sm">{msg.desc}</p>
+        </Card>
+      );
+    }
+
+    // ========================================
+    // 🚀 App Component
+    // ========================================
+    function App() {
+      const [query, setQuery] = useState("");
+      const [searchedCity, setSearchedCity] = useState(null);
+      const [result, setResult] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState(null);
+      const [geoLoading, setGeoLoading] = useState(false);
+
+      // 앱 시작 시 현재 위치로 자동 검색
+      useEffect(() => {
+        handleGeoSearch();
+      }, []);
+
+      async function handleGeoSearch() {
+        setGeoLoading(true);
+        setLoading(true);
+        setResult(null);
+        setError(null);
+        setSearchedCity("내 위치");
+
+        try {
+          const { lat, lon } = await getCurrentPosition();
+          const data = await fetchWeatherByCoords(lat, lon);
+          setResult(data);
+          setQuery(data.cityName);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+          setGeoLoading(false);
+        }
+      }
+
+      async function handleSearch(cityName) {
+        const trimmed = (cityName || query).trim();
+        if (!trimmed) return;
+
+        setSearchedCity(trimmed);
+        setQuery(trimmed);
+        setLoading(true);
+        setResult(null);
+        setError(null);
+
+        try {
+          const data = await fetchWeather(trimmed);
+          setResult(data);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      function handleKeyDown(e) {
+        if (e.key === "Enter") handleSearch();
+      }
+
+      function handleChipSelect(city) {
+        setQuery(city);
+        handleSearch(city);
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-100 px-4 py-10">
+          <div className="max-w-lg mx-auto">
+            <Header />
+
+            {/* 검색 바 */}
+            <div className="flex gap-2 mb-6">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="도시 이름을 입력하세요 (예: Seoul, Tokyo, London)"
+              />
+              <Button onClick={() => handleSearch()} className="shrink-0">
+                검색
+              </Button>
+              <button
+                onClick={handleGeoSearch}
+                disabled={geoLoading}
+                className="shrink-0 w-12 h-12 flex items-center justify-center bg-white hover:bg-gray-50 border border-gray-200 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+                title="내 위치 날씨"
+              >
+                {geoLoading
+                  ? <span className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin inline-block"></span>
+                  : <span className="text-xl">📍</span>
+                }
+              </button>
+            </div>
+
+            {/* 빠른 선택 칩 */}
+            {!result && !loading && !error && (
+              <CityChips onSelect={handleChipSelect} />
+            )}
+
+            {/* 로딩 */}
+            {loading && <LoadingSpinner />}
+
+            {/* 결과 */}
+            {result && (
+              <>
+                <WeatherCard data={result} />
+                <ForecastCard forecast={result.forecast} timezoneOffset={result.timezoneOffset} />
+                <AirQualityCard airQuality={result.airQuality} />
+              </>
+            )}
+
+            {/* 에러 */}
+            {error && <ErrorCard city={searchedCity} errorType={error} />}
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🔧 Rendering
+    // ========================================
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
