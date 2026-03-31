@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>마음이 - AI 심리상담</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+    body { font-family: 'Noto Sans KR', sans-serif; }
+    .chat-scroll::-webkit-scrollbar { width: 6px; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    @keyframes dotPulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+    .dot-1 { animation: dotPulse 1.4s infinite 0s; }
+    .dot-2 { animation: dotPulse 1.4s infinite 0.2s; }
+    .dot-3 { animation: dotPulse 1.4s infinite 0.4s; }
+  </style>
+</head>
+<body class="bg-slate-50">
+  <div id="root"></div>
+  <script type="text/babel">
+    // ========================================
+    // 🪝 React Hooks
+    // ========================================
+    const { useState, useRef, useEffect } = React;
+
+    const API_BASE_URL = window.location.origin;
+
+    // ========================================
+    // 🎨 Design System Components
+    // ========================================
+    function TypingIndicator() {
+      return (
+        <div className="flex items-end gap-2 mb-4">
+          <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+            🧠
+          </div>
+          <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full dot-1"></div>
+              <div className="w-2 h-2 bg-emerald-400 rounded-full dot-2"></div>
+              <div className="w-2 h-2 bg-emerald-400 rounded-full dot-3"></div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ChatBubble({ message }) {
+      const isUser = message.role === 'user';
+      return (
+        <div className={`flex items-end gap-2 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}>
+          {!isUser && (
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+              🧠
+            </div>
+          )}
+          <div
+            className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm whitespace-pre-wrap leading-relaxed ${
+              isUser
+                ? 'bg-emerald-500 text-white rounded-br-md'
+                : 'bg-white text-slate-700 rounded-bl-md'
+            }`}
+          >
+            {message.content}
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🚀 App Component
+    // ========================================
+    function App() {
+      const [messages, setMessages] = useState([
+        {
+          role: 'assistant',
+          content: '안녕하세요, 저는 AI 심리상담사 마음이예요 🌿\n\n편안한 마음으로 이야기해 주세요. 오늘 기분이 어떠세요?',
+        },
+      ]);
+      const [input, setInput] = useState('');
+      const [loading, setLoading] = useState(false);
+      const chatEndRef = useRef(null);
+      const inputRef = useRef(null);
+
+      useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [messages, loading]);
+
+      const sendMessage = async () => {
+        const text = input.trim();
+        if (!text || loading) return;
+
+        const userMsg = { role: 'user', content: text };
+        const newMessages = [...messages, userMsg];
+        setMessages(newMessages);
+        setInput('');
+        setLoading(true);
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) }),
+          });
+
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+        } catch (err) {
+          setMessages(prev => [
+            ...prev,
+            { role: 'assistant', content: `죄송해요, 오류가 발생했어요 😢\n\n${err.message}` },
+          ]);
+        } finally {
+          setLoading(false);
+          inputRef.current?.focus();
+        }
+      };
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      };
+
+      const resetChat = () => {
+        setMessages([
+          {
+            role: 'assistant',
+            content: '새로운 상담을 시작할게요 🌿\n\n오늘은 어떤 이야기를 나누고 싶으세요?',
+          },
+        ]);
+      };
+
+      return (
+        <div className="h-screen flex flex-col bg-gradient-to-b from-emerald-50 to-slate-50">
+          {/* Header */}
+          <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white text-lg">
+                🧠
+              </div>
+              <div>
+                <h1 className="font-bold text-slate-800 text-lg">마음이</h1>
+                <p className="text-xs text-emerald-600">AI 심리상담사 · 항상 여기 있어요</p>
+              </div>
+            </div>
+            <button
+              onClick={resetChat}
+              className="text-sm text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              새 상담
+            </button>
+          </header>
+
+          {/* Chat Area */}
+          <div className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
+            <div className="max-w-2xl mx-auto">
+              {/* 안내 배너 */}
+              <div className="text-center mb-6">
+                <div className="inline-block bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-xs text-amber-700">
+                  ⚠️ AI 상담은 전문 상담을 대체할 수 없습니다. 위기 시 자살예방상담전화 <strong>1393</strong>
+                </div>
+              </div>
+
+              {messages.map((msg, i) => (
+                <ChatBubble key={i} message={msg} />
+              ))}
+              {loading && <TypingIndicator />}
+              <div ref={chatEndRef} />
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="bg-white border-t border-slate-200 px-4 py-3">
+            <div className="max-w-2xl mx-auto flex gap-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="마음속 이야기를 편하게 적어주세요..."
+                rows={1}
+                className="flex-1 resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-slate-400"
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || loading}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white rounded-xl px-5 py-3 text-sm font-medium transition-colors flex-shrink-0"
+              >
+                전송
+              </button>
+            </div>
+            <p className="text-center text-xs text-slate-400 mt-2">
+              Enter로 전송 · Shift+Enter로 줄바꿈
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 🔌 Rendering
+    // ========================================
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
