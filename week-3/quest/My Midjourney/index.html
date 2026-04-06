@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cubism Studio - 피카소 큐비즘 AI 아트 생성기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Playfair Display', 'serif'],
+            body: ['Noto Sans KR', 'sans-serif'],
+          },
+          colors: {
+            canvas: {
+              50: '#faf8f5',
+              100: '#f3efe8',
+              200: '#e8e0d4',
+              300: '#d4c8b5',
+              400: '#b8a48a',
+              500: '#9c8268',
+              600: '#84694f',
+              700: '#6b5340',
+              800: '#524035',
+              900: '#3a2e28',
+              950: '#1f1813',
+            },
+            cubism: {
+              blue: '#2d5a8e',
+              ochre: '#c4923a',
+              terracotta: '#b85c3c',
+              olive: '#6b7c3a',
+              slate: '#4a5568',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; }
+    .font-display { font-family: 'Playfair Display', serif; }
+
+    @keyframes cubism-rotate {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(3deg) scale(1.02); }
+      50% { transform: rotate(-2deg) scale(0.98); }
+      75% { transform: rotate(1deg) scale(1.01); }
+    }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .animate-fade-up {
+      animation: fade-up 0.5s ease-out forwards;
+    }
+
+    .cubism-loader {
+      position: relative;
+      width: 80px;
+      height: 80px;
+    }
+    .cubism-loader div {
+      position: absolute;
+      animation: cubism-rotate 2s ease-in-out infinite;
+    }
+    .cubism-loader div:nth-child(1) {
+      width: 40px; height: 40px; background: #2d5a8e; top: 0; left: 0;
+      clip-path: polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%);
+      animation-delay: 0s;
+    }
+    .cubism-loader div:nth-child(2) {
+      width: 35px; height: 45px; background: #c4923a; top: 5px; left: 35px;
+      clip-path: polygon(30% 0%, 100% 20%, 70% 100%, 0% 80%);
+      animation-delay: 0.3s;
+    }
+    .cubism-loader div:nth-child(3) {
+      width: 45px; height: 35px; background: #b85c3c; top: 40px; left: 10px;
+      clip-path: polygon(0% 20%, 80% 0%, 100% 80%, 20% 100%);
+      animation-delay: 0.6s;
+    }
+    .cubism-loader div:nth-child(4) {
+      width: 30px; height: 30px; background: #6b7c3a; top: 35px; left: 45px;
+      clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+      animation-delay: 0.9s;
+    }
+
+    .gallery-item:hover .gallery-overlay {
+      opacity: 1;
+    }
+
+    .upload-zone {
+      background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%23b8a48a' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e");
+    }
+
+    .upload-zone.dragover {
+      background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%232d5a8e' stroke-width='3' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e");
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f3efe8; }
+    ::-webkit-scrollbar-thumb { background: #b8a48a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #9c8268; }
+
+    /* Paint Reveal Effect */
+    .paint-reveal {
+      position: relative;
+      overflow: hidden;
+    }
+    .paint-reveal img {
+      display: block;
+      width: 100%;
+    }
+    .paint-reveal .brush-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .paint-reveal .brush-layer span {
+      position: absolute;
+      background: #f3efe8;
+      transform-origin: left center;
+    }
+
+    @keyframes brush-wipe {
+      0% { transform: scaleX(1); }
+      60% { transform: scaleX(1); }
+      100% { transform: scaleX(0); }
+    }
+
+    .paint-reveal .canvas-texture {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      background: repeating-conic-gradient(rgba(180,160,130,0.04) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+      mix-blend-mode: multiply;
+      opacity: 0;
+      animation: texture-appear 3s ease-out forwards;
+      animation-delay: 2.5s;
+    }
+
+    @keyframes texture-appear {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes signature-appear {
+      0% { opacity: 0; transform: translateY(5px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .paint-signature {
+      animation: signature-appear 0.6s ease-out forwards;
+      animation-delay: 3s;
+      opacity: 0;
+    }
+  </style>
+</head>
+<body class="bg-canvas-50 text-canvas-900 min-h-screen">
+  <div id="root"></div>
+  <script type="text/babel">
+
+  // ========================================
+  // React Hooks Destructuring
+  // ========================================
+  const { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } = React;
+
+  // ========================================
+  // Constants
+  // ========================================
+  const API_BASE_URL = '/api';
+
+  const STORAGE_KEYS = {
+    GALLERY: 'cubism-studio-gallery',
+  };
+
+  // ========================================
+  // 🎨 Design System Components
+  // ========================================
+
+  function Button({ variant = 'primary', size = 'md', disabled, onClick, className = '', children, type = 'button' }) {
+    const base = 'inline-flex items-center justify-center font-medium transition-all duration-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cubism-blue disabled:opacity-50 disabled:cursor-not-allowed';
+    const variants = {
+      primary: 'bg-canvas-900 text-canvas-50 hover:bg-canvas-800 active:bg-canvas-950',
+      secondary: 'bg-canvas-200 text-canvas-800 hover:bg-canvas-300 active:bg-canvas-400',
+      danger: 'bg-cubism-terracotta text-white hover:opacity-90',
+      ghost: 'bg-transparent text-canvas-700 hover:bg-canvas-100',
+      accent: 'bg-cubism-blue text-white hover:opacity-90',
+    };
+    const sizes = {
+      sm: 'px-3 py-1.5 text-sm',
+      md: 'px-5 py-2.5 text-sm',
+      lg: 'px-7 py-3 text-base',
+    };
+    return (
+      <button
+        type={type}
+        disabled={disabled}
+        onClick={onClick}
+        className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  function Input({ label, value, onChange, placeholder, error, disabled, type = 'text', className = '', ...props }) {
+    return (
+      <div className={className}>
+        {label && <label className="block text-sm font-medium text-canvas-700 mb-1.5">{label}</label>}
+        <input
+          type={type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`w-full px-4 py-2.5 bg-white border rounded-lg text-canvas-900 placeholder-canvas-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-cubism-blue focus:border-transparent ${error ? 'border-cubism-terracotta' : 'border-canvas-300 hover:border-canvas-400'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          {...props}
+        />
+        {error && <p className="mt-1 text-sm text-cubism-terracotta">{error}</p>}
+      </div>
+    );
+  }
+
+  function Textarea({ label, value, onChange, placeholder, rows = 4, className = '' }) {
+    return (
+      <div className={className}>
+        {label && <label className="block text-sm font-medium text-canvas-700 mb-1.5">{label}</label>}
+        <textarea
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          rows={rows}
+          className="w-full px-4 py-3 bg-white border border-canvas-300 rounded-lg text-canvas-900 placeholder-canvas-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-cubism-blue focus:border-transparent hover:border-canvas-400 resize-none"
+        />
+      </div>
+    );
+  }
+
+  function Card({ children, className = '', onClick }) {
+    return (
+      <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-canvas-200 ${className}`}>
+        {children}
+      </div>
+    );
+  }
+
+  function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+    if (!isOpen) return null;
+    const sizes = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', full: 'max-w-6xl' };
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="absolute inset-0 bg-canvas-950/60 backdrop-blur-sm" />
+        <div
+          className={`relative bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] overflow-auto animate-fade-up`}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between p-6 border-b border-canvas-200">
+            <h2 className="text-xl font-display font-bold text-canvas-900">{title}</h2>
+            <button onClick={onClose} className="p-1 text-canvas-400 hover:text-canvas-700 transition-colors" aria-label="닫기">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div className="p-6">{children}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function Badge({ children, color = 'default', className = '' }) {
+    const colors = {
+      default: 'bg-canvas-200 text-canvas-700',
+      blue: 'bg-cubism-blue/10 text-cubism-blue',
+      ochre: 'bg-cubism-ochre/10 text-cubism-ochre',
+      terracotta: 'bg-cubism-terracotta/10 text-cubism-terracotta',
+    };
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]} ${className}`}>
+        {children}
+      </span>
+    );
+  }
+
+  function CubismLoader() {
+    return (
+      <div className="cubism-loader">
+        <div /><div /><div /><div />
+      </div>
+    );
+  }
+
+  // ========================================
+  // 🎬 Paint Reveal Effect Component
+  // ========================================
+
+  function PaintReveal({ src, alt }) {
+    const containerRef = useRef(null);
+    const [revealed, setRevealed] = useState(false);
+
+    useEffect(() => {
+      if (!containerRef.current) return;
+      const brushLayer = containerRef.current.querySelector('.brush-layer');
+      if (!brushLayer || revealed) return;
+
+      // 붓 터치 스트립 생성 (가로 방향 브러시 스트로크)
+      const rows = 18;
+      const h = 100 / rows;
+      brushLayer.innerHTML = '';
+
+      for (let i = 0; i < rows; i++) {
+        const span = document.createElement('span');
+        const skew = (Math.random() - 0.5) * 4;
+        const extraH = 1.5;
+        span.style.cssText = `
+          top: ${i * h - extraH / 2}%;
+          left: -2%;
+          width: 104%;
+          height: ${h + extraH}%;
+          transform: scaleX(1) skewY(${skew}deg);
+          animation: brush-wipe ${1.2 + Math.random() * 0.8}s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          animation-delay: ${0.3 + i * 0.12 + Math.random() * 0.15}s;
+        `;
+        brushLayer.appendChild(span);
+      }
+
+      const timer = setTimeout(() => setRevealed(true), 4000);
+      return () => clearTimeout(timer);
+    }, [src]);
+
+    return (
+      <div className="paint-reveal rounded-lg" ref={containerRef}>
+        <img src={src} alt={alt} />
+        <div className="brush-layer" />
+        <div className="canvas-texture" />
+      </div>
+    );
+  }
+
+  // ========================================
+  // 🧩 Common/Layout Components
+  // ========================================
+
+  function Header() {
+    return (
+      <header className="bg-white/80 backdrop-blur-md border-b border-canvas-200 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 relative">
+                <div className="absolute inset-0 bg-cubism-blue" style={{clipPath: 'polygon(20% 0%, 100% 0%, 80% 60%, 0% 100%)'}} />
+                <div className="absolute inset-0 bg-cubism-ochre/70" style={{clipPath: 'polygon(40% 10%, 100% 40%, 60% 100%, 0% 60%)'}} />
+                <div className="absolute inset-0 bg-cubism-terracotta/50" style={{clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)'}} />
+              </div>
+              <div>
+                <h1 className="font-display font-bold text-xl tracking-tight text-canvas-900">Cubism Studio</h1>
+                <p className="text-[10px] text-canvas-500 tracking-widest uppercase -mt-0.5">by Picasso AI</p>
+              </div>
+            </div>
+            <Badge color="blue">Server Connected</Badge>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  function TabBar({ activeTab, onTabChange }) {
+    const tabs = [
+      { id: 'text', label: '텍스트로 생성', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/>
+          <circle cx="11" cy="11" r="2"/>
+        </svg>
+      )},
+      { id: 'image', label: '이미지 변환', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+        </svg>
+      )},
+      { id: 'gallery', label: '갤러리', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      )},
+    ];
+
+    return (
+      <div className="flex gap-1 p-1 bg-canvas-100 rounded-xl">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex-1 justify-center ${
+              activeTab === tab.id
+                ? 'bg-white text-canvas-900 shadow-sm'
+                : 'text-canvas-500 hover:text-canvas-700'
+            }`}
+          >
+            {tab.icon}
+            <span className="hidden sm:inline">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // ========================================
+  // 📄 Page Components
+  // ========================================
+
+  function TextToImage({ onImageGenerated }) {
+    const [prompt, setPrompt] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [preview, setPreview] = useState(null);
+
+    const suggestions = [
+      '기타를 연주하는 여인',
+      '파리의 카페 풍경',
+      '정물화 - 과일과 와인병',
+      '춤추는 두 사람',
+      '바다가 보이는 창문',
+      '독서하는 남자',
+    ];
+
+    const handleGenerate = async () => {
+      if (!prompt.trim()) return;
+
+      setLoading(true);
+      setError(null);
+      setPreview(null);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/text-to-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: prompt.trim() }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `API 오류 (${response.status})`);
+
+        setPreview(data.url);
+        onImageGenerated({
+          url: data.url,
+          prompt: prompt.trim(),
+          type: 'text-to-image',
+          timestamp: Date.now(),
+        });
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <Card className="p-6">
+          <h2 className="font-display text-lg font-bold mb-1">텍스트에서 큐비즘 아트 생성</h2>
+          <p className="text-sm text-canvas-500 mb-5">원하는 장면이나 주제를 설명하면, 피카소 큐비즘 스타일로 변환합니다.</p>
+
+          <Textarea
+            label="프롬프트"
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="예: 기타를 연주하는 여인, 테이블 위의 과일들..."
+            rows={3}
+          />
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {suggestions.map(s => (
+              <button
+                key={s}
+                onClick={() => setPrompt(s)}
+                className="px-3 py-1 text-xs bg-canvas-100 text-canvas-600 rounded-full hover:bg-canvas-200 transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 p-3 bg-canvas-50 rounded-lg border border-canvas-200">
+            <p className="text-xs text-canvas-500">
+              <span className="font-medium text-canvas-600">자동 추가 스타일:</span> Pablo Picasso cubism, geometric shapes, fragmented forms, bold angular lines, abstract cubist composition
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleGenerate}
+              disabled={loading || !prompt.trim()}
+              className="w-full"
+            >
+              {loading ? '큐비즘 아트 생성 중...' : '큐비즘 아트 생성'}
+            </Button>
+          </div>
+        </Card>
+
+        {loading && (
+          <Card className="p-12 flex flex-col items-center justify-center">
+            <CubismLoader />
+            <p className="mt-6 text-canvas-600 font-medium">피카소의 영감을 불러오는 중...</p>
+            <p className="mt-1 text-sm text-canvas-400">잠시만 기다려주세요</p>
+          </Card>
+        )}
+
+        {error && (
+          <Card className="p-5 border-cubism-terracotta/30 bg-cubism-terracotta/5">
+            <div className="flex gap-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b85c3c" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <div>
+                <p className="font-medium text-cubism-terracotta">생성 실패</p>
+                <p className="text-sm text-canvas-600 mt-1">{error}</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {preview && !loading && (
+          <Card className="overflow-hidden animate-fade-up">
+            <div className="relative group">
+              <PaintReveal src={preview} alt={prompt} />
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-6 paint-signature" style={{zIndex: 10}}>
+                <p className="text-white font-medium">{prompt}</p>
+                <Badge color="blue" className="mt-2">Text-to-Image</Badge>
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  function ImageToImage({ onImageGenerated }) {
+    const [prompt, setPrompt] = useState('');
+    const [uploadedImage, setUploadedImage] = useState(null);
+    const [strength, setStrength] = useState(0.75);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [preview, setPreview] = useState(null);
+    const [dragover, setDragover] = useState(false);
+    const fileRef = useRef(null);
+
+    const handleFile = (file) => {
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (e) => setUploadedImage(e.target.result);
+      reader.readAsDataURL(file);
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      setDragover(false);
+      handleFile(e.dataTransfer.files[0]);
+    };
+
+    const handleGenerate = async () => {
+      if (!uploadedImage) return;
+
+      setLoading(true);
+      setError(null);
+      setPreview(null);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/image-to-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            image_url: uploadedImage,
+            strength: strength,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `API 오류 (${response.status})`);
+
+        setPreview(data.url);
+        onImageGenerated({
+          url: data.url,
+          prompt: prompt.trim() || '이미지 변환',
+          type: 'image-to-image',
+          timestamp: Date.now(),
+        });
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <Card className="p-6">
+          <h2 className="font-display text-lg font-bold mb-1">이미지를 큐비즘으로 변환</h2>
+          <p className="text-sm text-canvas-500 mb-5">사진이나 이미지를 업로드하면 피카소 큐비즘 스타일로 재해석합니다.</p>
+
+          <div
+            className={`upload-zone rounded-xl p-8 text-center cursor-pointer transition-colors ${dragover ? 'dragover bg-cubism-blue/5' : 'bg-canvas-50 hover:bg-canvas-100'}`}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); setDragover(true); }}
+            onDragLeave={() => setDragover(false)}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => handleFile(e.target.files[0])}
+            />
+            {uploadedImage ? (
+              <div className="space-y-3">
+                <img src={uploadedImage} alt="업로드된 이미지" className="max-h-48 mx-auto rounded-lg shadow-md" />
+                <p className="text-sm text-canvas-500">클릭하여 다른 이미지 선택</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="w-16 h-16 mx-auto bg-canvas-200 rounded-xl flex items-center justify-center">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9c8268" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium text-canvas-700">이미지를 드래그하거나 클릭하여 업로드</p>
+                  <p className="text-sm text-canvas-400 mt-1">JPG, PNG, WebP 지원</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Textarea
+            label="추가 프롬프트 (선택)"
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="변환 시 강조하고 싶은 요소를 입력하세요..."
+            rows={2}
+            className="mt-5"
+          />
+
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-canvas-700 mb-2">
+              변환 강도: <span className="text-cubism-blue font-bold">{Math.round(strength * 100)}%</span>
+            </label>
+            <input
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.05"
+              value={strength}
+              onChange={e => setStrength(parseFloat(e.target.value))}
+              className="w-full accent-cubism-blue"
+            />
+            <div className="flex justify-between text-xs text-canvas-400 mt-1">
+              <span>원본 유지</span>
+              <span>완전 변환</span>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleGenerate}
+              disabled={loading || !uploadedImage}
+              className="w-full"
+            >
+              {loading ? '큐비즘 스타일로 변환 중...' : '큐비즘 스타일로 변환'}
+            </Button>
+          </div>
+        </Card>
+
+        {loading && (
+          <Card className="p-12 flex flex-col items-center justify-center">
+            <CubismLoader />
+            <p className="mt-6 text-canvas-600 font-medium">큐비즘의 세계로 변환 중...</p>
+            <p className="mt-1 text-sm text-canvas-400">잠시만 기다려주세요</p>
+          </Card>
+        )}
+
+        {error && (
+          <Card className="p-5 border-cubism-terracotta/30 bg-cubism-terracotta/5">
+            <div className="flex gap-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b85c3c" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <div>
+                <p className="font-medium text-cubism-terracotta">변환 실패</p>
+                <p className="text-sm text-canvas-600 mt-1">{error}</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {preview && !loading && (
+          <div className="grid md:grid-cols-2 gap-4 animate-fade-up">
+            <Card className="overflow-hidden">
+              <div className="p-3 bg-canvas-100 text-xs font-medium text-canvas-500 text-center uppercase tracking-wider">원본</div>
+              <img src={uploadedImage} alt="원본" className="w-full object-cover" />
+            </Card>
+            <Card className="overflow-hidden">
+              <div className="p-3 bg-cubism-blue/10 text-xs font-medium text-cubism-blue text-center uppercase tracking-wider">큐비즘 변환</div>
+              <PaintReveal src={preview} alt="큐비즘 변환" />
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function Gallery({ gallery, setGallery }) {
+    const [selectedImage, setSelectedImage] = useState(null);
+
+    const handleDelete = (index) => {
+      const updated = gallery.filter((_, i) => i !== index);
+      setGallery(updated);
+      localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
+    };
+
+    const handleClearAll = () => {
+      if (window.confirm('모든 갤러리 이미지를 삭제하시겠습니까?')) {
+        setGallery([]);
+        localStorage.removeItem(STORAGE_KEYS.GALLERY);
+      }
+    };
+
+    const formatDate = (ts) => {
+      const d = new Date(ts);
+      return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
+    if (gallery.length === 0) {
+      return (
+        <Card className="p-16 text-center">
+          <div className="w-20 h-20 mx-auto bg-canvas-100 rounded-2xl flex items-center justify-center mb-4">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b8a48a" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <h3 className="font-display text-lg font-bold text-canvas-700">아직 작품이 없습니다</h3>
+          <p className="text-sm text-canvas-400 mt-2">텍스트 생성이나 이미지 변환으로 첫 큐비즘 작품을 만들어보세요.</p>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-canvas-500">{gallery.length}개의 작품</p>
+          <Button variant="ghost" size="sm" onClick={handleClearAll}>전체 삭제</Button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {gallery.map((item, index) => (
+            <Card key={item.timestamp} className="overflow-hidden gallery-item group cursor-pointer animate-fade-up" style={{animationDelay: `${index * 50}ms`}}>
+              <div className="relative aspect-[4/3]" onClick={() => setSelectedImage(item)}>
+                <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
+                <div className="gallery-overlay absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 flex flex-col justify-end p-4">
+                  <p className="text-white text-sm font-medium line-clamp-2">{item.prompt}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <Badge color={item.type === 'text-to-image' ? 'blue' : 'ochre'}>
+                      {item.type === 'text-to-image' ? '텍스트' : '이미지 변환'}
+                    </Badge>
+                    <span className="text-white/60 text-xs">{formatDate(item.timestamp)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3 flex items-center justify-between">
+                <p className="text-sm text-canvas-700 truncate flex-1">{item.prompt}</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(index); }}
+                  className="ml-2 p-1.5 text-canvas-400 hover:text-cubism-terracotta hover:bg-cubism-terracotta/10 rounded-lg transition-colors flex-shrink-0"
+                  aria-label="삭제"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                  </svg>
+                </button>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <Modal isOpen={!!selectedImage} onClose={() => setSelectedImage(null)} title="작품 상세" size="xl">
+          {selectedImage && (
+            <div className="space-y-4">
+              <img src={selectedImage.url} alt={selectedImage.prompt} className="w-full rounded-lg" />
+              <div className="flex flex-wrap gap-2 items-center">
+                <Badge color={selectedImage.type === 'text-to-image' ? 'blue' : 'ochre'}>
+                  {selectedImage.type === 'text-to-image' ? '텍스트 생성' : '이미지 변환'}
+                </Badge>
+                <span className="text-sm text-canvas-400">{formatDate(selectedImage.timestamp)}</span>
+              </div>
+              <p className="text-canvas-700"><span className="font-medium">프롬프트:</span> {selectedImage.prompt}</p>
+              <div className="flex gap-3">
+                <a href={selectedImage.url} download target="_blank" rel="noopener noreferrer">
+                  <Button variant="primary" size="sm">다운로드</Button>
+                </a>
+                <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(selectedImage.url); }}>
+                  URL 복사
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      </div>
+    );
+  }
+
+  // ========================================
+  // 🚀 App Component
+  // ========================================
+
+  function App() {
+    const [gallery, setGallery] = useState(() => {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEYS.GALLERY) || '[]');
+      } catch { return []; }
+    });
+    const [activeTab, setActiveTab] = useState('text');
+
+    const handleImageGenerated = useCallback((item) => {
+      setGallery(prev => {
+        const updated = [item, ...prev];
+        localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
+        return updated;
+      });
+    }, []);
+
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+
+        <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+          {/* Hero */}
+          <div className="text-center py-6">
+            <h2 className="font-display text-3xl sm:text-4xl font-bold text-canvas-900 tracking-tight">
+              AI 큐비즘 스튜디오
+            </h2>
+            <p className="mt-2 text-canvas-500 max-w-md mx-auto">
+              피카소의 큐비즘 화풍으로 당신만의 아트를 생성하세요
+            </p>
+          </div>
+
+          {/* Tabs */}
+          <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+
+          {/* Content */}
+          {activeTab === 'text' && (
+            <TextToImage onImageGenerated={handleImageGenerated} />
+          )}
+          {activeTab === 'image' && (
+            <ImageToImage onImageGenerated={handleImageGenerated} />
+          )}
+          {activeTab === 'gallery' && (
+            <Gallery gallery={gallery} setGallery={setGallery} />
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="border-t border-canvas-200 bg-white/50 py-6 mt-8">
+          <div className="max-w-7xl mx-auto px-4 text-center">
+            <p className="text-xs text-canvas-400">
+              Cubism Studio &mdash; Powered by OpenAI &amp; React
+            </p>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  // ========================================
+  // Rendering
+  // ========================================
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  </script>
+</body>
+</html>
