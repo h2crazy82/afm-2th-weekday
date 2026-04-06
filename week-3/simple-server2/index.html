@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secret Heart</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #1a1a2e;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    .container {
+      text-align: center;
+      z-index: 10;
+    }
+
+    .lock-icon {
+      font-size: 60px;
+      margin-bottom: 20px;
+      transition: transform 0.5s, opacity 0.5s;
+    }
+
+    .lock-icon.unlocked {
+      transform: scale(1.5) rotate(20deg);
+      opacity: 0;
+    }
+
+    h1 {
+      color: #e0e0e0;
+      font-size: 24px;
+      margin-bottom: 30px;
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+
+    .input-group {
+      position: relative;
+      display: inline-block;
+    }
+
+    .password-input {
+      width: 280px;
+      padding: 14px 50px 14px 20px;
+      border: 2px solid #333;
+      border-radius: 50px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-size: 18px;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      letter-spacing: 4px;
+    }
+
+    .password-input:focus {
+      border-color: #e91e63;
+      box-shadow: 0 0 20px rgba(233, 30, 99, 0.3);
+    }
+
+    .password-input::placeholder {
+      letter-spacing: 1px;
+      color: #666;
+    }
+
+    .submit-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e91e63, #ff5722);
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-50%) scale(1.1);
+      box-shadow: 0 0 15px rgba(233, 30, 99, 0.5);
+    }
+
+    .message {
+      margin-top: 20px;
+      font-size: 16px;
+      color: #ff5252;
+      height: 24px;
+      transition: opacity 0.3s;
+    }
+
+    .message.success {
+      color: #ff80ab;
+      font-size: 22px;
+    }
+
+    .shake {
+      animation: shake 0.5s;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-10px); }
+      40% { transform: translateX(10px); }
+      60% { transform: translateX(-10px); }
+      80% { transform: translateX(10px); }
+    }
+
+    /* Hearts */
+    .heart {
+      position: fixed;
+      font-size: 30px;
+      pointer-events: none;
+      z-index: 100;
+      animation: floatUp var(--duration) ease-out forwards;
+    }
+
+    @keyframes floatUp {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(0.5) rotate(0deg);
+      }
+      50% {
+        opacity: 1;
+        transform: translateY(-40vh) scale(1.2) rotate(var(--rotate));
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-90vh) scale(0.8) rotate(calc(var(--rotate) * 2));
+      }
+    }
+
+    /* Big heart explosion */
+    .big-heart {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      font-size: 150px;
+      z-index: 200;
+      animation: bigHeartPop 1.5s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes bigHeartPop {
+      0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+      30% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+      60% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+      100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="lock-icon" id="lockIcon">🔒</div>
+    <h1>비밀번호를 입력하세요</h1>
+    <div class="input-group" id="inputGroup">
+      <input
+        type="password"
+        class="password-input"
+        id="passwordInput"
+        placeholder="password"
+        maxlength="20"
+        autocomplete="off"
+      />
+      <button class="submit-btn" id="submitBtn">→</button>
+    </div>
+    <div class="message" id="message"></div>
+  </div>
+
+  <script>
+    const passwordInput = document.getElementById("passwordInput");
+    const submitBtn = document.getElementById("submitBtn");
+    const message = document.getElementById("message");
+    const inputGroup = document.getElementById("inputGroup");
+    const lockIcon = document.getElementById("lockIcon");
+
+    function createHeart(x, y) {
+      const heart = document.createElement("div");
+      heart.classList.add("heart");
+      const hearts = ["❤️", "💖", "💕", "💗", "💓", "💘", "💝", "🩷"];
+      heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+      heart.style.left = x + "px";
+      heart.style.top = y + "px";
+      heart.style.fontSize = Math.random() * 30 + 20 + "px";
+      heart.style.setProperty("--duration", (Math.random() * 2 + 2) + "s");
+      heart.style.setProperty("--rotate", (Math.random() * 60 - 30) + "deg");
+      document.body.appendChild(heart);
+      setTimeout(() => heart.remove(), 4000);
+    }
+
+    function burstHearts() {
+      const bigHeart = document.createElement("div");
+      bigHeart.classList.add("big-heart");
+      bigHeart.textContent = "❤️";
+      document.body.appendChild(bigHeart);
+      setTimeout(() => bigHeart.remove(), 1500);
+
+      let count = 0;
+      const interval = setInterval(() => {
+        for (let i = 0; i < 3; i++) {
+          const x = Math.random() * window.innerWidth;
+          const y = window.innerHeight * 0.5 + Math.random() * window.innerHeight * 0.5;
+          createHeart(x, y);
+        }
+        count++;
+        if (count > 30) clearInterval(interval);
+      }, 100);
+    }
+
+    async function handleSubmit() {
+      const value = passwordInput.value;
+
+      if (!value) {
+        message.textContent = "비밀번호를 입력해주세요!";
+        message.className = "message";
+        return;
+      }
+
+      try {
+        const res = await fetch("/check-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: value }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          lockIcon.textContent = "🔓";
+          lockIcon.classList.add("unlocked");
+          message.textContent = data.message;
+          message.className = "message success";
+          burstHearts();
+        } else {
+          message.textContent = data.message;
+          message.className = "message";
+          inputGroup.classList.add("shake");
+          setTimeout(() => inputGroup.classList.remove("shake"), 500);
+          passwordInput.value = "";
+          passwordInput.focus();
+        }
+      } catch {
+        message.textContent = "서버 연결에 실패했어요";
+        message.className = "message";
+      }
+    }
+
+    submitBtn.addEventListener("click", handleSubmit);
+    passwordInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleSubmit();
+    });
+
+    passwordInput.focus();
+  </script>
+</body>
+</html>
