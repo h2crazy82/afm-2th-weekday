@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div id="root"></div>
+  <script type="text/babel">
+    // ========================================
+    // 1. React Hooks Destructuring
+    // ========================================
+    const { useState, useEffect, useCallback, useMemo } = React;
+
+    // ========================================
+    // 2. Design System Components
+    // ========================================
+
+    function Button({ children, onClick, variant = "primary", size = "md", disabled = false, className = "", type = "button" }) {
+      const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+
+      const variants = {
+        primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
+        secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400",
+        danger: "bg-red-500 text-white hover:bg-red-600 focus:ring-red-400",
+        ghost: "bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-300",
+        success: "bg-green-500 text-white hover:bg-green-600 focus:ring-green-400",
+      };
+
+      const sizes = {
+        sm: "px-3 py-1.5 text-sm",
+        md: "px-4 py-2 text-base",
+        lg: "px-6 py-3 text-lg",
+      };
+
+      return (
+        <button
+          type={type}
+          onClick={onClick}
+          disabled={disabled}
+          className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+        >
+          {children}
+        </button>
+      );
+    }
+
+    function Input({ type = "text", label, value, onChange, placeholder, error, disabled = false, className = "", onKeyDown }) {
+      return (
+        <div className={`w-full ${className}`}>
+          {label && (
+            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+          )}
+          <input
+            type={type}
+            value={value}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={`w-full px-4 py-2 border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+              error ? "border-red-500" : "border-gray-300"
+            }`}
+            aria-invalid={!!error}
+            aria-describedby={error ? "input-error" : undefined}
+          />
+          {error && (
+            <p id="input-error" className="mt-1 text-sm text-red-500">{error}</p>
+          )}
+        </div>
+      );
+    }
+
+    function Card({ children, className = "" }) {
+      return (
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${className}`}>
+          {children}
+        </div>
+      );
+    }
+
+    // ========================================
+    // 3. Tab Component
+    // ========================================
+
+    function Tabs({ tabs, activeTab, onChange }) {
+      return (
+        <div className="flex border-b border-gray-200 mb-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => onChange(tab.key)}
+              className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab.key
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ========================================
+    // 4. Users Page Component
+    // ========================================
+
+    function UsersPage({ users, setUsers, onSelectUser }) {
+      const [name, setName] = useState("");
+      const [email, setEmail] = useState("");
+      const [error, setError] = useState("");
+      const [loading, setLoading] = useState(false);
+
+      const handleAddUser = async () => {
+        if (!name.trim() || !email.trim()) {
+          setError("이름과 이메일을 모두 입력해주세요.");
+          return;
+        }
+        setLoading(true);
+        setError("");
+        try {
+          const res = await fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+          });
+          const result = await res.json();
+          if (result.success) {
+            setUsers((prev) => [...prev, result.data]);
+            setName("");
+            setEmail("");
+          } else {
+            setError(result.message || "유저 생성에 실패했습니다.");
+          }
+        } catch {
+          setError("서버 연결에 실패했습니다.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div>
+          {/* Add User Form */}
+          <Card className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">유저 추가</h2>
+            <div className="space-y-3">
+              <Input
+                label="이름"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="예: 홍길동"
+              />
+              <Input
+                label="이메일"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="예: hong@example.com"
+                type="email"
+              />
+              {error && <p className="text-sm text-red-500">{error}</p>}
+              <Button onClick={handleAddUser} disabled={loading || !name.trim() || !email.trim()}>
+                {loading ? "추가 중..." : "유저 추가"}
+              </Button>
+            </div>
+          </Card>
+
+          {/* User List */}
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              전체 유저 ({users.length}명)
+            </h2>
+            {users.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">등록된 유저가 없습니다.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100" role="list">
+                {users.map((user) => (
+                  <li key={user.id} className="flex items-center justify-between py-3 group">
+                    <div>
+                      <p className="font-medium text-gray-800">{user.name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onSelectUser(user.id)}
+                    >
+                      할 일 보기
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 5. Todo Page Component
+    // ========================================
+
+    function TodoPage({ users, selectedUserId, setSelectedUserId, setUsers }) {
+      const [todos, setTodos] = useState([]);
+      const [inputValue, setInputValue] = useState("");
+
+      // Fetch todos when selected user changes
+      useEffect(() => {
+        if (!selectedUserId) return;
+        fetch(`/api/users/${selectedUserId}/todos`)
+          .then((res) => res.json())
+          .then((result) => {
+            if (result.success) setTodos(result.data);
+          })
+          .catch(() => {});
+      }, [selectedUserId]);
+
+      const selectedUser = useMemo(
+        () => users.find((u) => u.id === selectedUserId),
+        [users, selectedUserId]
+      );
+
+      const remainingCount = useMemo(
+        () => todos.filter((t) => !t.completed).length,
+        [todos]
+      );
+
+      const handleAdd = useCallback(async () => {
+        const text = inputValue.trim();
+        if (!text || !selectedUserId) return;
+        try {
+          const res = await fetch("/api/todos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, userId: selectedUserId }),
+          });
+          const result = await res.json();
+          if (result.success) {
+            setTodos((prev) => [...prev, result.data]);
+            setInputValue("");
+          }
+        } catch {}
+      }, [inputValue, selectedUserId]);
+
+      const handleKeyDown = useCallback(
+        (e) => {
+          if (e.key === "Enter") handleAdd();
+        },
+        [handleAdd]
+      );
+
+      const handleToggle = useCallback(async (id) => {
+        const todo = todos.find((t) => t.id === id);
+        if (!todo) return;
+        try {
+          const res = await fetch(`/api/todos/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed: !todo.completed }),
+          });
+          const result = await res.json();
+          if (result.success) {
+            setTodos((prev) =>
+              prev.map((t) => (t.id === id ? result.data : t))
+            );
+          }
+        } catch {}
+      }, [todos]);
+
+      const handleDelete = useCallback(async (id) => {
+        try {
+          const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+          const result = await res.json();
+          if (result.success) {
+            setTodos((prev) => prev.filter((t) => t.id !== id));
+          }
+        } catch {}
+      }, []);
+
+      return (
+        <div>
+          {/* User Selector */}
+          <Card className="mb-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 shrink-0">유저:</label>
+              <select
+                value={selectedUserId || ""}
+                onChange={(e) => setSelectedUserId(Number(e.target.value))}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Card>
+
+          {selectedUser && (
+            <p className="text-center text-blue-600 font-medium mb-4">
+              {selectedUser.name}님의 할 일 목록
+            </p>
+          )}
+
+          {/* Add Todo */}
+          <Card className="mb-6">
+            <div className="flex gap-2">
+              <Input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="할 일을 입력하세요"
+              />
+              <Button onClick={handleAdd} disabled={!inputValue.trim()} className="shrink-0">
+                추가
+              </Button>
+            </div>
+          </Card>
+
+          {/* Todo List */}
+          <Card>
+            {todos.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">
+                등록된 할 일이 없습니다.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100" role="list">
+                {todos.map((todo) => (
+                  <li
+                    key={todo.id}
+                    className="flex items-center gap-3 py-3 group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={todo.completed}
+                      onChange={() => handleToggle(todo.id)}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                      aria-label={`${todo.text} 완료 여부`}
+                    />
+                    <span
+                      className={`flex-1 break-all ${
+                        todo.completed
+                          ? "line-through text-gray-400"
+                          : "text-gray-800"
+                      }`}
+                    >
+                      {todo.text}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(todo.id)}
+                      className="opacity-0 group-hover:opacity-100 sm:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      aria-label={`${todo.text} 삭제`}
+                    >
+                      삭제
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {todos.length > 0 && (
+              <p className="text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
+                남은 할 일: {remainingCount}개
+              </p>
+            )}
+          </Card>
+        </div>
+      );
+    }
+
+    // ========================================
+    // 6. App Component
+    // ========================================
+
+    function App() {
+      const [activeTab, setActiveTab] = useState("todos");
+      const [users, setUsers] = useState([]);
+      const [selectedUserId, setSelectedUserId] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      const tabs = [
+        { key: "todos", label: "할 일" },
+        { key: "users", label: "유저 관리" },
+      ];
+
+      // Fetch users on mount
+      useEffect(() => {
+        fetch("/api/users")
+          .then((res) => res.json())
+          .then((result) => {
+            if (result.success && result.data.length > 0) {
+              setUsers(result.data);
+              setSelectedUserId(result.data[0].id);
+            }
+          })
+          .catch(() => {})
+          .finally(() => setLoading(false));
+      }, []);
+
+      const handleSelectUser = (userId) => {
+        setSelectedUserId(userId);
+        setActiveTab("todos");
+      };
+
+      if (loading) {
+        return (
+          <div className="max-w-lg mx-auto px-4 py-10 text-center text-gray-400">
+            로딩 중...
+          </div>
+        );
+      }
+
+      return (
+        <div className="max-w-lg mx-auto px-4 py-10 sm:py-16">
+          <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">
+            Todo App
+          </h1>
+          <p className="text-center text-gray-400 text-sm mb-6">JSON DB 기반 할 일 관리</p>
+
+          <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+
+          {activeTab === "todos" && (
+            <TodoPage
+              users={users}
+              selectedUserId={selectedUserId}
+              setSelectedUserId={setSelectedUserId}
+              setUsers={setUsers}
+            />
+          )}
+          {activeTab === "users" && (
+            <UsersPage
+              users={users}
+              setUsers={setUsers}
+              onSelectUser={handleSelectUser}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ========================================
+    // 6. Rendering
+    // ========================================
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
