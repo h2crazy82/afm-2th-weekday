@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>밸런스 게임</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    margin: 0;
+    padding: 40px 20px;
+    color: #333;
+  }
+  .container { max-width: 760px; margin: 0 auto; }
+  h1 {
+    color: #fff;
+    text-align: center;
+    font-size: 2.4em;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .subtitle {
+    color: rgba(255,255,255,0.85);
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  }
+  .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .form-row input {
+    flex: 1;
+    padding: 12px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-row input:focus { border-color: #667eea; }
+  .form-row input.a { border-color: #ff6b9d; }
+  .form-row input.b { border-color: #4ecdc4; }
+  .btn-submit {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  .btn-submit:hover { opacity: 0.92; }
+
+  .question-card { position: relative; }
+  .total {
+    text-align: center;
+    color: #888;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .options {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 18px;
+  }
+  .option-btn {
+    padding: 0;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #fff;
+    overflow: hidden;
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
+    min-height: 190px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .option-img {
+    width: 100%;
+    height: 130px;
+    object-fit: cover;
+    background: rgba(255,255,255,0.2);
+    display: block;
+  }
+  .option-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 10px;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .option-btn.a { background: linear-gradient(135deg, #ff6b9d, #ff8e9e); }
+  .option-btn.b { background: linear-gradient(135deg, #4ecdc4, #44a8a0); }
+  .option-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(0,0,0,0.2); }
+  .vs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    color: #999;
+    font-size: 22px;
+    padding: 0 4px;
+  }
+
+  /* 줄다리기 바 */
+  .tug {
+    position: relative;
+    height: 46px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #f0f0f3;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .bar {
+    display: flex;
+    height: 100%;
+    width: 100%;
+  }
+  .bar-a, .bar-b {
+    display: flex;
+    align-items: center;
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    transition: width 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 46px;
+    position: relative;
+  }
+  .bar-a { background: linear-gradient(135deg, #ff6b9d, #ff8e9e); justify-content: flex-start; padding-left: 14px; }
+  .bar-b { background: linear-gradient(135deg, #4ecdc4, #44a8a0); justify-content: flex-end; padding-right: 14px; }
+
+  /* 줄(로프)과 매듭 */
+  .rope {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 6px;
+    transform: translateY(-50%);
+    background: repeating-linear-gradient(
+      90deg,
+      #c9a063 0 6px,
+      #a67a42 6px 12px
+    );
+    border-radius: 3px;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  .knot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle at 30% 30%, #fff, #ffd54f 60%, #f9a825);
+    border: 3px solid #7a4f1d;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: left 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 3;
+  }
+  .knot::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 2px dashed rgba(122, 79, 29, 0.5);
+  }
+
+  /* 줄다리기 애니메이션 */
+  @keyframes tugLeft {
+    0%   { transform: translateX(0); }
+    25%  { transform: translateX(-6px); }
+    50%  { transform: translateX(-3px); }
+    75%  { transform: translateX(-8px); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes tugRight {
+    0%   { transform: translateX(0); }
+    25%  { transform: translateX(6px); }
+    50%  { transform: translateX(3px); }
+    75%  { transform: translateX(8px); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    20% { transform: translateX(-2px) rotate(-1deg); }
+    40% { transform: translateX(2px) rotate(1deg); }
+    60% { transform: translateX(-2px) rotate(-1deg); }
+    80% { transform: translateX(2px) rotate(1deg); }
+  }
+  .tug.pull-a .bar-a { animation: tugLeft 0.6s ease; }
+  .tug.pull-b .bar-b { animation: tugRight 0.6s ease; }
+  .tug.pull-a .knot,
+  .tug.pull-b .knot { animation: shake 0.5s ease; }
+  .tug.pull-a .rope { animation: tugLeft 0.6s ease; }
+  .tug.pull-b .rope { animation: tugRight 0.6s ease; }
+
+  .empty {
+    text-align: center;
+    color: #fff;
+    padding: 40px;
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚖️ 밸런스 게임</h1>
+    <p class="subtitle">A vs B, 당신의 선택은?</p>
+
+    <div class="card">
+      <div class="form-row">
+        <input id="optA" class="a" placeholder="A 선택지" />
+        <input id="optB" class="b" placeholder="B 선택지" />
+      </div>
+      <button class="btn-submit" onclick="createQuestion()">질문 등록</button>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+<script>
+function imageUrl(text) {
+  const prompt = encodeURIComponent(text + ', simple illustration, colorful, centered');
+  const seed = Math.abs([...text].reduce((a, c) => a + c.charCodeAt(0), 0));
+  return `https://image.pollinations.ai/prompt/${prompt}?width=320&height=200&nologo=true&seed=${seed}`;
+}
+
+async function loadQuestions(pulled) {
+  const res = await fetch('/api/questions');
+  const data = await res.json();
+  const list = document.getElementById('list');
+  if (!data.length) {
+    list.innerHTML = '<div class="empty">아직 등록된 질문이 없어요. 첫 질문을 만들어보세요!</div>';
+    return;
+  }
+  list.innerHTML = data.map(q => {
+    const a = q.total ? q.percent_a : 50;
+    const b = q.total ? q.percent_b : 50;
+    return `
+    <div class="card question-card">
+      <div class="total">👥 총 ${q.total}명 참여</div>
+      <div class="options">
+        <button class="option-btn a" onclick="vote('${q.id}', 'A')">
+          <img class="option-img" src="${imageUrl(q.option_a)}" alt="" loading="lazy" onerror="this.style.display='none'" />
+          <span class="option-label">${escapeHtml(q.option_a)}</span>
+        </button>
+        <div class="vs">VS</div>
+        <button class="option-btn b" onclick="vote('${q.id}', 'B')">
+          <img class="option-img" src="${imageUrl(q.option_b)}" alt="" loading="lazy" onerror="this.style.display='none'" />
+          <span class="option-label">${escapeHtml(q.option_b)}</span>
+        </button>
+      </div>
+      <div class="tug" id="tug-${q.id}">
+        <div class="rope"></div>
+        <div class="bar">
+          <div class="bar-a" style="width:${a}%">${q.percent_a}%</div>
+          <div class="bar-b" style="width:${b}%">${q.percent_b}%</div>
+        </div>
+        <div class="knot" style="left:${a}%"></div>
+      </div>
+    </div>
+  `;
+  }).join('');
+
+  if (pulled) {
+    const el = document.getElementById('tug-' + pulled.id);
+    if (el) {
+      el.classList.add(pulled.choice === 'A' ? 'pull-a' : 'pull-b');
+      setTimeout(() => el.classList.remove('pull-a', 'pull-b'), 700);
+    }
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+async function createQuestion() {
+  const a = document.getElementById('optA').value.trim();
+  const b = document.getElementById('optB').value.trim();
+  if (!a || !b) { alert('A와 B를 모두 입력해주세요'); return; }
+  const res = await fetch('/api/questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ option_a: a, option_b: b }),
+  });
+  if (!res.ok) { alert('등록 실패'); return; }
+  document.getElementById('optA').value = '';
+  document.getElementById('optB').value = '';
+  loadQuestions();
+}
+
+async function vote(question_id, choice) {
+  const res = await fetch('/api/votes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_id, choice }),
+  });
+  if (!res.ok) { alert('투표 실패'); return; }
+  loadQuestions({ id: question_id, choice });
+}
+
+loadQuestions();
+</script>
+</body>
+</html>
