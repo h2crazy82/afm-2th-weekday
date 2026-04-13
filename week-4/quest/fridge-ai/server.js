@@ -119,6 +119,42 @@ app.delete('/api/recipes/:id', async (req, res) => {
   res.status(204).end();
 });
 
+// ===== AI Step Images =====
+const MAX_STEP_IMAGES = 6;
+
+function parseSteps(stepsText) {
+  if (!stepsText) return [];
+  return stepsText
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function generateStepImages(title, stepsText) {
+  const steps = parseSteps(stepsText).slice(0, MAX_STEP_IMAGES);
+  if (steps.length === 0) return [];
+
+  return Promise.all(
+    steps.map(async (step) => {
+      const cleanStep = step.replace(/^\d+[\.\)]\s*/, '');
+      const prompt = `Photorealistic top-down view of a Korean home kitchen showing this cooking step: ${cleanStep}. Dish: ${title}. Warm natural lighting, clean minimal styling, appetizing, high detail, no text, no watermark.`;
+      try {
+        const result = await openai.images.generate({
+          model: 'dall-e-3',
+          prompt,
+          size: '1024x1024',
+          quality: 'standard',
+          n: 1,
+        });
+        return { step, image_url: result.data?.[0]?.url || null };
+      } catch (e) {
+        console.error('image gen error for step:', cleanStep, e.message);
+        return { step, image_url: null, error: e.message };
+      }
+    })
+  );
+}
+
 // ===== AI Recipe Generation =====
 app.post('/api/generate-recipe', async (req, res) => {
   try {
@@ -169,10 +205,16 @@ app.post('/api/generate-recipe', async (req, res) => {
       return res.status(502).json({ error: 'AI 응답을 해석할 수 없습니다.', raw: content });
     }
 
+    const includeImages = req.body?.include_images !== false;
+    const stepImages = includeImages
+      ? await generateStepImages(recipe.title || '', recipe.steps || '')
+      : [];
+
     res.json({
       title: recipe.title || '',
       ingredients: recipe.ingredients || '',
       steps: recipe.steps || '',
+      step_images: stepImages,
       used_fridge: ingredients,
     });
   } catch (err) {
