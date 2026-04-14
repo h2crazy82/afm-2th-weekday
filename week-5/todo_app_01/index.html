@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #fcfcfc;
+      color: #0a0a0a;
+    }
+    /* Custom checkbox — finer, smaller */
+    .check {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #d4d4d4;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.18s ease;
+      flex-shrink: 0;
+      cursor: pointer;
+      background: transparent;
+    }
+    .check:hover {
+      border-color: #525252;
+    }
+    .check.checked {
+      background-color: #0a0a0a;
+      border-color: #0a0a0a;
+    }
+    .check.checked::after {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 9999px;
+      background: #fcfcfc;
+    }
+    /* Smooth fade-in */
+    .fade-in {
+      animation: fadeIn 0.22s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* Accent dot motif */
+    .dot {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 9999px;
+      background: #0a0a0a;
+      vertical-align: middle;
+    }
+    /* Strip focus noise */
+    input:focus { outline: none; }
+    button:focus { outline: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // ========================================
+    // Constants
+    // ========================================
+    const API_BASE = "/api/todos";
+    const AUTH_BASE = "/api/auth";
+    const TOKEN_KEY = "todo_app_01:token";
+    const USER_KEY = "todo_app_01:user";
+    const FILTERS = [
+      { key: "all", label: "전체" },
+      { key: "active", label: "진행중" },
+      { key: "completed", label: "완료" },
+    ];
+
+    // ========================================
+    // API helpers
+    // ========================================
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY) || "";
+    }
+
+    async function apiRequest(url, options = {}) {
+      const token = getToken();
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {}),
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) {
+        const err = new Error(json.message || `요청 실패 (${res.status})`);
+        err.status = res.status;
+        throw err;
+      }
+      return json.data;
+    }
+
+    // ========================================
+    // Design System
+    // ========================================
+    function Dot({ className = "" }) {
+      return <span className={`dot ${className}`} aria-hidden="true" />;
+    }
+
+    function Checkbox({ checked, onChange, ariaLabel }) {
+      return (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={checked}
+          aria-label={ariaLabel}
+          onClick={onChange}
+          className={`check ${checked ? "checked" : ""}`}
+        />
+      );
+    }
+
+    function MetaButton({ active, onClick, children, className = "" }) {
+      return (
+        <button
+          type="button"
+          onClick={onClick}
+          className={`text-[11px] tracking-wide transition-colors ${
+            active ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-700"
+          } ${className}`}
+        >
+          {children}
+        </button>
+      );
+    }
+
+    function Underline({ children }) {
+      return (
+        <div className="border-b border-neutral-200 focus-within:border-neutral-900 transition-colors">
+          {children}
+        </div>
+      );
+    }
+
+    // ========================================
+    // Page: AuthScreen
+    // ========================================
+    function AuthScreen({ onAuthed }) {
+      const [mode, setMode] = useState("login");
+      const [email, setEmail] = useState("");
+      const [password, setPassword] = useState("");
+      const [name, setName] = useState("");
+      const [submitting, setSubmitting] = useState(false);
+      const [error, setError] = useState(null);
+
+      const submit = async (e) => {
+        e.preventDefault();
+        if (submitting) return;
+        setError(null);
+        setSubmitting(true);
+        try {
+          const path = mode === "login" ? "/login" : "/signup";
+          const body =
+            mode === "login"
+              ? { email, password }
+              : { email, password, name };
+          const data = await apiRequest(`${AUTH_BASE}${path}`, {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+          onAuthed(data.user);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      const toggleMode = () => {
+        setError(null);
+        setMode(mode === "login" ? "signup" : "login");
+      };
+
+      return (
+        <div className="min-h-screen w-full flex justify-center px-6 py-24 sm:py-32">
+          <div className="w-full max-w-[260px]">
+            <header className="mb-16">
+              <Dot />
+              <p className="mt-5 text-[11px] text-neutral-400 tracking-wide">
+                {mode === "login" ? "로그인" : "가입"}
+              </p>
+              {error && (
+                <p className="mt-4 text-[11px] text-neutral-500 tracking-wide">
+                  {error}
+                </p>
+              )}
+            </header>
+
+            <form onSubmit={submit} className="space-y-8">
+              {mode === "signup" && (
+                <Underline>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="이름"
+                    className="w-full bg-transparent text-sm text-neutral-900 placeholder-neutral-300 pb-2"
+                    autoComplete="name"
+                  />
+                </Underline>
+              )}
+
+              <Underline>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="이메일"
+                  className="w-full bg-transparent text-sm text-neutral-900 placeholder-neutral-300 pb-2"
+                  autoComplete="email"
+                  required
+                />
+              </Underline>
+
+              <Underline>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="비밀번호"
+                  className="w-full bg-transparent text-sm text-neutral-900 placeholder-neutral-300 pb-2"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                />
+              </Underline>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full text-[11px] tracking-[0.15em] uppercase text-neutral-900 pt-6 hover:text-neutral-500 transition-colors disabled:opacity-30"
+              >
+                {submitting ? "처리 중" : mode === "login" ? "계속" : "가입"}
+              </button>
+            </form>
+
+            <div className="mt-10">
+              <button
+                type="button"
+                onClick={toggleMode}
+                className="text-[11px] text-neutral-400 hover:text-neutral-900 transition-colors tracking-wide"
+              >
+                {mode === "login" ? "가입하기" : "로그인"}
+              </button>
+            </div>
+
+            {mode === "login" && (
+              <div className="mt-20 space-y-1">
+                <p className="text-[10px] text-neutral-300 tracking-wide">jimin@example.com · password123</p>
+                <p className="text-[10px] text-neutral-300 tracking-wide">suhyun@example.com · password123</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // Page: TodoApp
+    // ========================================
+    function TodoApp({ user, onLogout }) {
+      const [todos, setTodos] = useState([]);
+      const [input, setInput] = useState("");
+      const [filter, setFilter] = useState("all");
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const inputRef = useRef(null);
+
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const data = await apiRequest(API_BASE);
+            if (!cancelled) setTodos(data || []);
+          } catch (err) {
+            if (cancelled) return;
+            if (err.status === 401) {
+              onLogout();
+              return;
+            }
+            setError(err.message);
+          } finally {
+            if (!cancelled) setLoading(false);
+          }
+        })();
+        return () => {
+          cancelled = true;
+        };
+      }, []);
+
+      const remaining = useMemo(
+        () => todos.filter((t) => !t.completed).length,
+        [todos]
+      );
+
+      const hasCompleted = useMemo(
+        () => todos.some((t) => t.completed),
+        [todos]
+      );
+
+      const visibleTodos = useMemo(() => {
+        if (filter === "active") return todos.filter((t) => !t.completed);
+        if (filter === "completed") return todos.filter((t) => t.completed);
+        return todos;
+      }, [todos, filter]);
+
+      const addTodo = async () => {
+        const text = input.trim();
+        if (!text) return;
+        setInput("");
+        inputRef.current?.focus();
+        try {
+          const created = await apiRequest(API_BASE, {
+            method: "POST",
+            body: JSON.stringify({ text }),
+          });
+          setTodos((prev) => [created, ...prev]);
+          setError(null);
+        } catch (err) {
+          setError(err.message);
+        }
+      };
+
+      const toggleTodo = async (id) => {
+        const target = todos.find((t) => t.id === id);
+        if (!target) return;
+        const next = !target.completed;
+        setTodos((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, completed: next } : t))
+        );
+        try {
+          await apiRequest(`${API_BASE}/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ completed: next }),
+          });
+          setError(null);
+        } catch (err) {
+          setTodos((prev) =>
+            prev.map((t) =>
+              t.id === id ? { ...t, completed: target.completed } : t
+            )
+          );
+          setError(err.message);
+        }
+      };
+
+      const deleteTodo = async (id) => {
+        const snapshot = todos;
+        setTodos((prev) => prev.filter((t) => t.id !== id));
+        try {
+          await apiRequest(`${API_BASE}/${id}`, { method: "DELETE" });
+          setError(null);
+        } catch (err) {
+          setTodos(snapshot);
+          setError(err.message);
+        }
+      };
+
+      const clearCompleted = async () => {
+        const snapshot = todos;
+        setTodos((prev) => prev.filter((t) => !t.completed));
+        try {
+          await apiRequest(`${API_BASE}/clear-completed`, { method: "DELETE" });
+          setError(null);
+        } catch (err) {
+          setTodos(snapshot);
+          setError(err.message);
+        }
+      };
+
+      const handleKeyDown = (e) => {
+        if (e.key === "Enter") addTodo();
+      };
+
+      return (
+        <div className="min-h-screen w-full flex justify-center px-6 py-24 sm:py-32">
+          <div className="w-full max-w-md">
+            {/* Header */}
+            <header className="mb-16">
+              <div className="flex items-start justify-between">
+                <div>
+                  <Dot />
+                  <p className="mt-5 text-[11px] text-neutral-400 tracking-wide">
+                    {loading
+                      ? "불러오는 중"
+                      : todos.length === 0
+                      ? `${user?.name || ""}`
+                      : `${remaining} 남음`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="text-[11px] text-neutral-300 hover:text-neutral-900 transition-colors tracking-wide"
+                >
+                  로그아웃
+                </button>
+              </div>
+              {error && (
+                <p className="mt-4 text-[11px] text-neutral-500 tracking-wide">
+                  {error}
+                </p>
+              )}
+            </header>
+
+            {/* Input */}
+            <div className="mb-12">
+              <Underline>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="무엇을 할까요"
+                  className="w-full bg-transparent text-sm text-neutral-900 placeholder-neutral-300 pb-2"
+                  aria-label="할 일 추가"
+                />
+              </Underline>
+            </div>
+
+            {/* List */}
+            <ul>
+              {visibleTodos.map((todo) => (
+                <li
+                  key={todo.id}
+                  className="fade-in group flex items-center gap-4 py-3"
+                >
+                  <Checkbox
+                    checked={todo.completed}
+                    onChange={() => toggleTodo(todo.id)}
+                    ariaLabel={`${todo.text} 완료 토글`}
+                  />
+                  <span
+                    onClick={() => toggleTodo(todo.id)}
+                    className={`flex-1 text-sm cursor-pointer select-none transition-colors ${
+                      todo.completed
+                        ? "line-through text-neutral-300"
+                        : "text-neutral-800"
+                    }`}
+                  >
+                    {todo.text}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => deleteTodo(todo.id)}
+                    aria-label="삭제"
+                    className="text-[11px] text-neutral-300 hover:text-neutral-900 opacity-0 group-hover:opacity-100 transition-opacity tracking-wide"
+                  >
+                    삭제
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* Empty States */}
+            {!loading && todos.length === 0 && (
+              <div className="py-10">
+                <p className="text-[11px] text-neutral-300 tracking-wide">
+                  아직 없음
+                </p>
+              </div>
+            )}
+
+            {todos.length > 0 && visibleTodos.length === 0 && (
+              <div className="py-8">
+                <p className="text-[11px] text-neutral-300 tracking-wide">
+                  —
+                </p>
+              </div>
+            )}
+
+            {/* Footer meta-controls */}
+            {todos.length > 0 && (
+              <div className="mt-16 flex items-center justify-between">
+                <div className="flex items-center gap-5">
+                  {FILTERS.map((f) => (
+                    <MetaButton
+                      key={f.key}
+                      active={filter === f.key}
+                      onClick={() => setFilter(f.key)}
+                    >
+                      {f.label}
+                    </MetaButton>
+                  ))}
+                </div>
+                {hasCompleted && (
+                  <MetaButton onClick={clearCompleted}>
+                    완료 지우기
+                  </MetaButton>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================
+    // App (auth gate)
+    // ========================================
+    function App() {
+      const [user, setUser] = useState(() => {
+        try {
+          const raw = localStorage.getItem(USER_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      });
+
+      const handleAuthed = (u) => setUser(u);
+      const handleLogout = () => {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        setUser(null);
+      };
+
+      if (!user || !getToken()) {
+        return <AuthScreen onAuthed={handleAuthed} />;
+      }
+      return <TodoApp user={user} onLogout={handleLogout} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
