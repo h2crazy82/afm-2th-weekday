@@ -1,0 +1,14 @@
+{
+  "name": "shopping-mall",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

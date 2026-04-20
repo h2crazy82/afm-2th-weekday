@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌱 플랜트 마켓</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f0f8f1 0%, #e3f1e5 100%);
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+      color: #2d3b2e;
+    }
+    .container { max-width: 1040px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 22px; }
+    header h1 { font-size: 30px; color: #2f5d3a; margin-bottom: 6px; }
+    header p { color: #7a8d7d; font-size: 14px; }
+
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; border-radius: 14px; padding: 12px 18px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      margin-bottom: 20px; gap: 10px; flex-wrap: wrap;
+    }
+    .nav-tabs { display: flex; gap: 6px; }
+    .nav-btn {
+      padding: 8px 14px; border: none; background: transparent;
+      border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; color: #7a8d7d;
+    }
+    .nav-btn.active { background: #2f5d3a; color: #fff; }
+    .nav-btn .badge {
+      display: inline-block; margin-left: 4px; padding: 1px 7px;
+      background: #f0ad4e; color: #fff; border-radius: 10px;
+      font-size: 11px;
+    }
+
+    .auth-info { font-size: 13px; color: #7a8d7d; }
+    .auth-info strong { color: #2f5d3a; }
+    .ghost-btn {
+      padding: 7px 12px; background: transparent; color: #7a8d7d;
+      border: 1.5px solid #d7e3d9; border-radius: 8px; cursor: pointer;
+      font-size: 13px;
+    }
+    .ghost-btn:hover { color: #2f5d3a; border-color: #2f5d3a; }
+    .danger-btn:hover { color: #c0392b; border-color: #c0392b; }
+
+    .card {
+      background: #fff; border-radius: 14px; padding: 22px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05); margin-bottom: 20px;
+    }
+    .card h2 { font-size: 17px; margin-bottom: 14px; color: #2f5d3a; }
+
+    .auth-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .auth-tab-btn {
+      flex: 1; padding: 10px;
+      border: 2px solid #d7e3d9; background: #fff;
+      border-radius: 10px; cursor: pointer;
+      font-size: 14px; font-weight: 600; color: #2f5d3a;
+    }
+    .auth-tab-btn.active { background: #2f5d3a; border-color: #2f5d3a; color: #fff; }
+    .auth-form { display: flex; flex-direction: column; gap: 10px; }
+
+    input {
+      width: 100%; padding: 12px;
+      border: 1.5px solid #d7e3d9; border-radius: 10px;
+      font-size: 14px; font-family: inherit;
+    }
+    input:focus { outline: none; border-color: #4a9e5c; }
+
+    .msg { font-size: 13px; color: #c0392b; min-height: 16px; }
+
+    .submit-btn {
+      width: 100%; margin-top: 10px; padding: 12px;
+      background: #4a9e5c; color: #fff; border: none;
+      border-radius: 10px; font-size: 15px; font-weight: 600;
+      cursor: pointer;
+    }
+    .submit-btn:hover { background: #3e8a4e; }
+    .submit-btn:disabled { background: #b5c8b9; cursor: not-allowed; }
+
+    .products {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .product {
+      background: #fff; border-radius: 14px; overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      display: flex; flex-direction: column;
+      transition: box-shadow .35s ease, transform .35s ease;
+    }
+    .product:hover {
+      box-shadow: 0 10px 24px rgba(47, 93, 58, 0.18);
+      transform: translateY(-3px);
+    }
+    .product-img-wrap {
+      width: 100%; aspect-ratio: 1 / 1; overflow: hidden;
+      background: #eef4ef; position: relative;
+    }
+    .product-img {
+      width: 100%; height: 100%; object-fit: cover;
+      transform: scale(1) rotate(0deg);
+      transform-origin: center 80%;
+      transition: transform .7s cubic-bezier(.22,.8,.28,1), filter .5s ease;
+    }
+    .product:hover .product-img {
+      transform: scale(1.18) rotate(-1.2deg);
+      filter: saturate(1.12) brightness(1.02);
+    }
+    .product-img-wrap::after {
+      content: '🌱'; position: absolute;
+      bottom: 6px; right: 8px; font-size: 20px;
+      opacity: 0; transform: translateY(8px) scale(0.6);
+      transition: opacity .45s ease, transform .55s cubic-bezier(.22,.8,.28,1);
+      pointer-events: none;
+    }
+    .product:hover .product-img-wrap::after {
+      opacity: 1; transform: translateY(0) scale(1.1);
+    }
+    .product-body { padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .product-name { font-size: 15px; font-weight: 700; color: #2f5d3a; }
+    .product-desc { font-size: 12.5px; color: #7a8d7d; line-height: 1.5; flex: 1; }
+    .product-price { font-size: 17px; font-weight: 800; color: #1e3d26; }
+    .product-btn {
+      padding: 10px; background: #4a9e5c; color: #fff;
+      border: none; border-radius: 10px; font-size: 13.5px;
+      font-weight: 600; cursor: pointer;
+    }
+    .product-btn:hover { background: #3e8a4e; }
+    .product-btn:disabled { background: #b5c8b9; cursor: not-allowed; }
+
+    .cart-item {
+      display: grid; grid-template-columns: 70px 1fr auto auto; gap: 12px;
+      align-items: center; padding: 12px; border-bottom: 1px solid #eef4ef;
+    }
+    .cart-item:last-child { border-bottom: none; }
+    .cart-img { width: 70px; height: 70px; border-radius: 10px; object-fit: cover; background: #eef4ef; }
+    .cart-info .name { font-weight: 700; color: #2f5d3a; margin-bottom: 4px; }
+    .cart-info .price { font-size: 13px; color: #7a8d7d; }
+    .qty-box { display: inline-flex; align-items: center; gap: 6px; }
+    .qty-btn {
+      width: 30px; height: 30px; border: 1.5px solid #d7e3d9;
+      background: #fff; border-radius: 8px; cursor: pointer;
+      font-size: 16px; font-weight: 700; color: #2f5d3a;
+    }
+    .qty-btn:hover { border-color: #4a9e5c; color: #4a9e5c; }
+    .qty-val { min-width: 22px; text-align: center; font-weight: 700; }
+    .x-btn {
+      width: 30px; height: 30px; border: 1.5px solid #d7e3d9;
+      background: #fff; border-radius: 8px; cursor: pointer;
+      color: #c0392b; font-weight: 700;
+    }
+    .x-btn:hover { border-color: #c0392b; background: #fff5f4; }
+
+    .cart-summary {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px; background: #f0f8f1; border-radius: 12px;
+      margin-top: 12px; font-weight: 700;
+    }
+    .cart-total { font-size: 20px; color: #1e3d26; }
+    .order-btn {
+      padding: 12px 22px; background: #2f5d3a; color: #fff;
+      border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+      cursor: pointer;
+    }
+    .order-btn:hover { background: #234a2c; }
+
+    .empty { text-align: center; padding: 40px 20px; color: #7a8d7d; font-size: 14px; }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #2f5d3a; color: #fff; padding: 10px 18px;
+      border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity .25s;
+      pointer-events: none; z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🌱 플랜트 마켓</h1>
+      <p>집에서 키우기 좋은 식물을 만나보세요</p>
+    </header>
+
+    <div class="topbar">
+      <div class="nav-tabs">
+        <button class="nav-btn active" data-view="products">상품</button>
+        <button class="nav-btn" data-view="cart">장바구니 <span class="badge hidden" id="cartBadge">0</span></button>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="auth-info" id="authInfo">비로그인</div>
+        <button class="ghost-btn hidden" id="signoutBtn">로그아웃</button>
+      </div>
+    </div>
+
+    <!-- Auth Card -->
+    <div class="card" id="authCard">
+      <h2>🔐 로그인 / 회원가입</h2>
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" data-mode="signin">로그인</button>
+        <button class="auth-tab-btn" data-mode="signup">회원가입</button>
+      </div>
+      <div class="auth-form">
+        <input type="email" id="email" placeholder="이메일" autocomplete="email" />
+        <input type="password" id="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" />
+        <div class="msg" id="authMsg"></div>
+        <button class="submit-btn" id="authBtn">로그인</button>
+      </div>
+    </div>
+
+    <!-- Products View -->
+    <div id="productsView">
+      <div class="card">
+        <h2>🛍️ 전체 상품</h2>
+        <div class="products" id="productList">
+          <div class="empty">불러오는 중...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cart View -->
+    <div id="cartView" class="hidden">
+      <div class="card">
+        <h2>🛒 내 장바구니</h2>
+        <div id="cartList">
+          <div class="empty">로그인 후 장바구니를 확인할 수 있어요.</div>
+        </div>
+        <div class="cart-summary hidden" id="cartSummary">
+          <div>
+            <div style="font-size:13px; color:#7a8d7d;">총 합계</div>
+            <div class="cart-total" id="cartTotal">0원</div>
+          </div>
+          <button class="order-btn" id="orderBtn">주문하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const TOKEN_KEY = 'shop_token';
+    const getToken = () => localStorage.getItem(TOKEN_KEY);
+    const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
+
+    let authMode = 'signin';
+    let currentUser = null;
+    let productsCache = [];
+    let cartCache = [];
+    let currentView = 'products';
+
+    async function api(url, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+      const token = getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return fetch(url, { ...opts, headers });
+    }
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove('show'), 1800);
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function krw(n) { return Number(n || 0).toLocaleString('ko-KR') + '원'; }
+
+    // ── Auth ──
+    document.querySelectorAll('.auth-tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.auth-tab-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        authMode = btn.dataset.mode;
+        document.getElementById('authBtn').textContent = authMode === 'signin' ? '로그인' : '회원가입';
+        document.getElementById('authMsg').textContent = '';
+      });
+    });
+
+    document.getElementById('authBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('authMsg');
+      msg.textContent = '';
+      if (!email || !password) { msg.textContent = '이메일과 비밀번호를 입력하세요.'; return; }
+
+      const endpoint = authMode === 'signin' ? '/api/auth/signin' : '/api/auth/signup';
+      const res = await api(endpoint, { method: 'POST', body: JSON.stringify({ email, password }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { msg.textContent = body.error || '실패'; return; }
+
+      if (body.session?.access_token) {
+        setToken(body.session.access_token);
+        currentUser = body.user;
+        renderAuth(body.user);
+        loadCart();
+        renderProducts();
+      } else {
+        msg.textContent = '확인 메일을 확인해 주세요.';
+      }
+    });
+
+    document.getElementById('signoutBtn').addEventListener('click', async () => {
+      await api('/api/auth/signout', { method: 'POST' });
+      setToken(null);
+      currentUser = null;
+      cartCache = [];
+      renderAuth(null);
+      renderProducts();
+      renderCart();
+    });
+
+    function renderAuth(user) {
+      const info = document.getElementById('authInfo');
+      const authCard = document.getElementById('authCard');
+      const signoutBtn = document.getElementById('signoutBtn');
+      if (user) {
+        info.innerHTML = `<strong>${escapeHtml(user.email || '')}</strong> 로그인됨`;
+        authCard.classList.add('hidden');
+        signoutBtn.classList.remove('hidden');
+      } else {
+        info.textContent = '비로그인';
+        authCard.classList.remove('hidden');
+        signoutBtn.classList.add('hidden');
+      }
+    }
+
+    async function checkSession() {
+      if (!getToken()) { renderAuth(null); return; }
+      const res = await api('/api/auth/me');
+      if (!res.ok) { setToken(null); renderAuth(null); return; }
+      const { user } = await res.json();
+      currentUser = user;
+      renderAuth(user);
+      loadCart();
+    }
+
+    // ── Nav ──
+    document.querySelectorAll('.nav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentView = btn.dataset.view;
+        document.getElementById('productsView').classList.toggle('hidden', currentView !== 'products');
+        document.getElementById('cartView').classList.toggle('hidden', currentView !== 'cart');
+        if (currentView === 'cart') loadCart();
+      });
+    });
+
+    // ── Products ──
+    async function loadProducts() {
+      const res = await api('/api/products');
+      if (!res.ok) {
+        document.getElementById('productList').innerHTML = '<div class="empty">상품을 불러오지 못했어요.</div>';
+        return;
+      }
+      productsCache = await res.json();
+      renderProducts();
+    }
+
+    function renderProducts() {
+      const list = document.getElementById('productList');
+      if (!productsCache.length) {
+        list.innerHTML = '<div class="empty">등록된 상품이 없어요.</div>';
+        return;
+      }
+      const loggedIn = !!currentUser;
+      list.innerHTML = productsCache.map((p) => `
+        <div class="product">
+          <div class="product-img-wrap">
+            <img class="product-img" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" loading="lazy" />
+          </div>
+          <div class="product-body">
+            <div class="product-name">${escapeHtml(p.name)}</div>
+            <div class="product-desc">${escapeHtml(p.description || '')}</div>
+            <div class="product-price">${krw(p.price)}</div>
+            <button class="product-btn" ${loggedIn ? '' : 'disabled'} onclick="addToCart(${p.id})">
+              ${loggedIn ? '🛒 장바구니 담기' : '로그인 후 이용'}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    window.addToCart = async function (productId) {
+      if (!currentUser) { toast('로그인이 필요해요.'); return; }
+      const res = await api('/api/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: 1 }) });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast(body.error || '담기 실패');
+        return;
+      }
+      toast('장바구니에 담겼어요 🛒');
+      loadCart();
+    };
+
+    // ── Cart ──
+    async function loadCart() {
+      if (!currentUser) { cartCache = []; renderCart(); return; }
+      const res = await api('/api/cart');
+      if (!res.ok) { cartCache = []; renderCart(); return; }
+      cartCache = await res.json();
+      renderCart();
+    }
+
+    function renderCart() {
+      const list = document.getElementById('cartList');
+      const summary = document.getElementById('cartSummary');
+      const badge = document.getElementById('cartBadge');
+
+      const count = cartCache.reduce((s, x) => s + x.quantity, 0);
+      if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+      else { badge.classList.add('hidden'); }
+
+      if (!currentUser) {
+        list.innerHTML = '<div class="empty">로그인 후 장바구니를 확인할 수 있어요.</div>';
+        summary.classList.add('hidden');
+        return;
+      }
+      if (!cartCache.length) {
+        list.innerHTML = '<div class="empty">장바구니가 비어있어요.</div>';
+        summary.classList.add('hidden');
+        return;
+      }
+
+      list.innerHTML = cartCache.map((c) => {
+        const p = c.products || {};
+        return `
+          <div class="cart-item">
+            <img class="cart-img" src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}" />
+            <div class="cart-info">
+              <div class="name">${escapeHtml(p.name)}</div>
+              <div class="price">${krw(p.price)} × ${c.quantity} = <strong>${krw((p.price || 0) * c.quantity)}</strong></div>
+            </div>
+            <div class="qty-box">
+              <button class="qty-btn" onclick="changeQty(${c.id}, ${c.quantity - 1})">−</button>
+              <span class="qty-val">${c.quantity}</span>
+              <button class="qty-btn" onclick="changeQty(${c.id}, ${c.quantity + 1})">+</button>
+            </div>
+            <button class="x-btn" onclick="removeCart(${c.id})">×</button>
+          </div>
+        `;
+      }).join('');
+
+      const total = cartCache.reduce((s, c) => s + (c.products?.price || 0) * c.quantity, 0);
+      document.getElementById('cartTotal').textContent = krw(total);
+      summary.classList.remove('hidden');
+    }
+
+    window.changeQty = async function (id, quantity) {
+      if (quantity < 1) { return removeCart(id); }
+      const res = await api(`/api/cart/${id}`, { method: 'PATCH', body: JSON.stringify({ quantity }) });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast(body.error || '수정 실패');
+        return;
+      }
+      loadCart();
+    };
+
+    window.removeCart = async function (id) {
+      const res = await api(`/api/cart/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast(body.error || '삭제 실패');
+        return;
+      }
+      loadCart();
+    };
+
+    document.getElementById('orderBtn').addEventListener('click', () => {
+      alert('준비 중입니다 🌱');
+    });
+
+    // ── init ──
+    loadProducts();
+    checkSession();
+  </script>
+</body>
+</html>
