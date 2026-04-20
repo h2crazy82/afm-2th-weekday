@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>부트캠프 2기 커뮤니티</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 100%);
+      min-height: 100vh;
+      padding: 30px 20px;
+      color: #333;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 28px; }
+    header h1 { font-size: 28px; color: #2c3e50; margin-bottom: 6px; }
+    header p { color: #7f8c8d; font-size: 14px; }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 17px; margin-bottom: 14px; color: #2c3e50; }
+
+    .auth-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .auth-info { font-size: 13px; color: #7f8c8d; }
+    .auth-info strong { color: #2c3e50; }
+    .auth-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .auth-tab-btn {
+      flex: 1; padding: 10px;
+      border: 2px solid #e0e4ea; background: #fff;
+      border-radius: 10px; cursor: pointer;
+      font-size: 14px; font-weight: 600;
+    }
+    .auth-tab-btn.active { background: #2c3e50; border-color: #2c3e50; color: #fff; }
+    .auth-form { display: flex; flex-direction: column; gap: 10px; }
+
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1.5px solid #e0e4ea;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    input:focus, textarea:focus { outline: none; border-color: #4a90e2; }
+
+    .msg { font-size: 13px; color: #e74c3c; min-height: 16px; }
+
+    .submit-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      background: #4a90e2;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+    }
+    .submit-btn:hover { background: #3a7fd0; }
+    .submit-btn:disabled { background: #b8c1cc; cursor: not-allowed; }
+
+    .ghost-btn {
+      padding: 6px 12px;
+      background: transparent;
+      color: #7f8c8d;
+      border: 1.5px solid #e0e4ea;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .ghost-btn:hover { color: #2c3e50; border-color: #2c3e50; }
+    .danger-btn:hover { color: #e74c3c; border-color: #e74c3c; }
+
+    .post {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+      border-left: 4px solid #4a90e2;
+    }
+    .post-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; gap: 10px;
+    }
+    .post-title { font-size: 16px; font-weight: 700; color: #2c3e50; flex: 1; word-break: break-word; }
+    .post-meta { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #95a5a6; margin-bottom: 10px; }
+    .post-author { color: #4a90e2; font-weight: 600; }
+    .post-time { font-size: 12px; color: #95a5a6; white-space: nowrap; }
+    .post-content {
+      font-size: 14px; line-height: 1.6; color: #2c3e50;
+      white-space: pre-wrap; word-break: break-word;
+      margin-bottom: 10px;
+    }
+    .post-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+    .empty { text-align: center; padding: 40px 20px; color: #95a5a6; font-size: 14px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎒 부트캠프 2기 커뮤니티</h1>
+      <p>동기들과 질문·공유·소통해요</p>
+    </header>
+
+    <div class="card">
+      <div class="auth-bar">
+        <h2>🔐 계정</h2>
+        <div class="auth-info" id="authInfo">비로그인</div>
+      </div>
+
+      <div id="authFormWrap">
+        <div class="auth-tabs">
+          <button class="auth-tab-btn active" data-mode="signin">로그인</button>
+          <button class="auth-tab-btn" data-mode="signup">회원가입</button>
+        </div>
+        <div class="auth-form">
+          <input type="email" id="email" placeholder="이메일" autocomplete="email" />
+          <input type="password" id="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" />
+          <div class="msg" id="authMsg"></div>
+          <button class="submit-btn" id="authBtn">로그인</button>
+        </div>
+      </div>
+
+      <div id="authedWrap" class="hidden" style="display:flex; justify-content:flex-end;">
+        <button class="ghost-btn" id="signoutBtn">로그아웃</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="writeCard">
+      <h2>✏️ 새 글 작성</h2>
+      <div class="auth-form">
+        <input type="text" id="title" placeholder="제목" maxlength="100" />
+        <textarea id="content" placeholder="내용을 입력하세요..."></textarea>
+        <div class="msg" id="writeMsg"></div>
+        <button class="submit-btn" id="submitBtn">게시하기</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📋 전체 글</h2>
+      <div id="postList">
+        <div class="empty" id="emptyHint">로그인 후 글을 볼 수 있어요.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'community_token';
+    const getToken = () => localStorage.getItem(TOKEN_KEY);
+    const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
+
+    let authMode = 'signin';
+    let currentUser = null;
+
+    async function api(url, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+      const token = getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return fetch(url, { ...opts, headers });
+    }
+
+    document.querySelectorAll('.auth-tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.auth-tab-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        authMode = btn.dataset.mode;
+        document.getElementById('authBtn').textContent = authMode === 'signin' ? '로그인' : '회원가입';
+        document.getElementById('authMsg').textContent = '';
+      });
+    });
+
+    document.getElementById('authBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('authMsg');
+      msg.textContent = '';
+      if (!email || !password) { msg.textContent = '이메일과 비밀번호를 입력하세요.'; return; }
+
+      const endpoint = authMode === 'signin' ? '/api/auth/signin' : '/api/auth/signup';
+      const res = await api(endpoint, { method: 'POST', body: JSON.stringify({ email, password }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { msg.textContent = body.error || '실패'; return; }
+
+      if (body.session?.access_token) {
+        setToken(body.session.access_token);
+        currentUser = body.user;
+        renderAuth(body.user);
+        loadPosts();
+      } else {
+        msg.textContent = '확인 메일을 확인해 주세요.';
+      }
+    });
+
+    document.getElementById('signoutBtn').addEventListener('click', async () => {
+      await api('/api/auth/signout', { method: 'POST' });
+      setToken(null);
+      currentUser = null;
+      renderAuth(null);
+      renderEmpty('로그인 후 글을 볼 수 있어요.');
+    });
+
+    function renderAuth(user) {
+      const info = document.getElementById('authInfo');
+      const formWrap = document.getElementById('authFormWrap');
+      const authedWrap = document.getElementById('authedWrap');
+      const writeCard = document.getElementById('writeCard');
+      if (user) {
+        info.innerHTML = `<strong>${escapeHtml(user.email || '')}</strong> 로그인됨`;
+        formWrap.classList.add('hidden');
+        authedWrap.classList.remove('hidden');
+        writeCard.classList.remove('hidden');
+      } else {
+        info.textContent = '비로그인';
+        formWrap.classList.remove('hidden');
+        authedWrap.classList.add('hidden');
+        writeCard.classList.add('hidden');
+      }
+    }
+
+    async function checkSession() {
+      if (!getToken()) { renderAuth(null); return; }
+      const res = await api('/api/auth/me');
+      if (!res.ok) { setToken(null); renderAuth(null); return; }
+      const { user } = await res.json();
+      currentUser = user;
+      renderAuth(user);
+      loadPosts();
+    }
+
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      const title = document.getElementById('title').value.trim();
+      const content = document.getElementById('content').value.trim();
+      const msg = document.getElementById('writeMsg');
+      msg.textContent = '';
+      if (!title || !content) { msg.textContent = '제목과 내용을 입력하세요.'; return; }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      try {
+        const res = await api('/api/posts', { method: 'POST', body: JSON.stringify({ title, content }) });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) { msg.textContent = body.error || '등록 실패'; return; }
+        document.getElementById('title').value = '';
+        document.getElementById('content').value = '';
+        await loadPosts();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    window.editPost = async function (id, oldTitle, oldContent) {
+      const title = prompt('제목', oldTitle);
+      if (title === null) return;
+      const content = prompt('내용', oldContent);
+      if (content === null) return;
+      const res = await api(`/api/posts/${id}`, { method: 'PATCH', body: JSON.stringify({ title, content }) });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.error || '수정 실패');
+        return;
+      }
+      loadPosts();
+    };
+
+    window.deletePost = async function (id) {
+      if (!confirm('삭제하시겠어요?')) return;
+      const res = await api(`/api/posts/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.error || '삭제 실패');
+        return;
+      }
+      loadPosts();
+    };
+
+    function formatTime(iso) {
+      const d = new Date(iso);
+      const diff = (Date.now() - d) / 1000;
+      if (diff < 60) return '방금 전';
+      if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+      return d.toLocaleDateString('ko-KR');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function renderEmpty(text) {
+      document.getElementById('postList').innerHTML = `<div class="empty">${escapeHtml(text)}</div>`;
+    }
+
+    async function loadPosts() {
+      if (!getToken()) { renderEmpty('로그인 후 글을 볼 수 있어요.'); return; }
+      const list = document.getElementById('postList');
+      const res = await api('/api/posts');
+      if (!res.ok) { renderEmpty('글을 불러오지 못했어요.'); return; }
+      const posts = await res.json();
+      if (!posts.length) { renderEmpty('아직 글이 없어요. 첫 글을 남겨보세요!'); return; }
+
+      list.innerHTML = posts.map((p) => {
+        const mine = currentUser && p.user_id === currentUser.id;
+        const actions = mine
+          ? `<button class="ghost-btn" onclick="editPost(${p.id}, ${JSON.stringify(p.title)}, ${JSON.stringify(p.content)})">수정</button>
+             <button class="ghost-btn danger-btn" onclick="deletePost(${p.id})">삭제</button>`
+          : '';
+        const author = p.author_email ? escapeHtml(p.author_email) : '알 수 없음';
+        const mineTag = mine ? ' <span style="color:#27ae60;">(나)</span>' : '';
+        return `
+          <div class="post">
+            <div class="post-header">
+              <div class="post-title">${escapeHtml(p.title)}</div>
+              <span class="post-time">${formatTime(p.created_at)}</span>
+            </div>
+            <div class="post-meta">
+              <span class="post-author">${author}</span>${mineTag}
+            </div>
+            <div class="post-content">${escapeHtml(p.content)}</div>
+            <div class="post-actions">${actions}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    checkSession();
+  </script>
+</body>
+</html>
