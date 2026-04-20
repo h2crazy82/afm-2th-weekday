@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>가계부</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .fade-in { animation: fadeIn 0.25s ease-in; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useMemo } = React;
+    const API_BASE_URL = '/api';
+
+    // ===== Design primitives =====
+    function Button({ variant = 'primary', size = 'md', disabled, onClick, type = 'button', children, className = '' }) {
+      const base = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed';
+      const variants = {
+        primary: 'bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500',
+        secondary: 'bg-slate-200 hover:bg-slate-300 text-slate-800 focus:ring-slate-400',
+        danger: 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 focus:ring-red-400',
+        ghost: 'hover:bg-slate-100 text-slate-700 focus:ring-slate-300',
+      };
+      const sizes = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2 text-sm', lg: 'px-5 py-2.5 text-base' };
+      return (
+        <button type={type} onClick={onClick} disabled={disabled}
+          className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}>
+          {children}
+        </button>
+      );
+    }
+
+    function Card({ children, className = '' }) {
+      return <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 ${className}`}>{children}</div>;
+    }
+
+    function Badge({ children, color = 'slate' }) {
+      const colors = {
+        slate: 'bg-slate-100 text-slate-700',
+        emerald: 'bg-emerald-100 text-emerald-700',
+        rose: 'bg-rose-100 text-rose-700',
+        indigo: 'bg-indigo-100 text-indigo-700',
+      };
+      return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>{children}</span>;
+    }
+
+    function Alert({ children }) {
+      return <div className="border rounded-lg px-3 py-2 text-sm bg-red-50 border-red-200 text-red-700">{children}</div>;
+    }
+
+    function Spinner() {
+      return (
+        <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+      );
+    }
+
+    function EmptyState({ title, description }) {
+      return (
+        <div className="text-center py-10 px-4">
+          <p className="text-sm font-medium text-slate-700">{title}</p>
+          {description && <p className="text-xs text-slate-500 mt-1">{description}</p>}
+        </div>
+      );
+    }
+
+    // ===== Helpers =====
+    const todayStr = () => new Date().toISOString().slice(0, 10);
+
+    function formatDate(value) {
+      if (!value) return '';
+      try {
+        const d = new Date(value);
+        return d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      } catch (e) { return ''; }
+    }
+
+    function formatWon(n) {
+      const num = Number(n) || 0;
+      return num.toLocaleString('ko-KR') + '원';
+    }
+
+    async function apiRequest(path, options = {}) {
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      if (!res.ok) {
+        let msg = `요청 실패 (${res.status})`;
+        try { const body = await res.json(); if (body?.error) msg = body.error; } catch (e) {}
+        throw new Error(msg);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    // ===== Form =====
+    function TransactionForm({ onCreated }) {
+      const [type, setType] = useState('expense');
+      const [form, setForm] = useState({
+        amount: '', category: '', memo: '', date: todayStr(),
+      });
+      const [submitting, setSubmitting] = useState(false);
+      const [error, setError] = useState(null);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!form.amount || Number(form.amount) < 0) { setError('올바른 금액을 입력해 주세요.'); return; }
+        if (!form.category.trim()) { setError('카테고리를 입력해 주세요.'); return; }
+        if (!form.date) { setError('날짜를 선택해 주세요.'); return; }
+        setSubmitting(true);
+        setError(null);
+        try {
+          await apiRequest('/transactions', {
+            method: 'POST',
+            body: JSON.stringify({
+              type,
+              amount: Number(form.amount),
+              category: form.category.trim(),
+              memo: form.memo.trim() || null,
+              date: form.date,
+            }),
+          });
+          setForm({ amount: '', category: '', memo: '', date: todayStr() });
+          onCreated?.();
+        } catch (e) {
+          setError(e.message);
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      return (
+        <Card className="p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">내역 등록</h2>
+            <div className="inline-flex bg-slate-100 rounded-lg p-1">
+              <button type="button" onClick={() => setType('expense')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  type === 'expense' ? 'bg-rose-500 text-white' : 'text-slate-600 hover:bg-white'
+                }`}>지출</button>
+              <button type="button" onClick={() => setType('income')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  type === 'income' ? 'bg-emerald-500 text-white' : 'text-slate-600 hover:bg-white'
+                }`}>수입</button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-700">금액<span className="text-red-500 ml-0.5">*</span></label>
+                <input type="number" min="0" step="1" value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  placeholder="예: 12000"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-700">날짜<span className="text-red-500 ml-0.5">*</span></label>
+                <input type="date" value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-slate-700">카테고리<span className="text-red-500 ml-0.5">*</span></label>
+              <input type="text" value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                placeholder="예: 식비 / 교통 / 주거 / 구독료"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-slate-700">메모</label>
+              <input type="text" value={form.memo}
+                onChange={(e) => setForm({ ...form, memo: e.target.value })}
+                placeholder="선택 입력"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+            </div>
+
+            {error && <Alert>{error}</Alert>}
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={submitting}>
+                {submitting ? '저장 중...' : '등록'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      );
+    }
+
+    // ===== List =====
+    function TransactionList({ items, loading, error, onDelete }) {
+      return (
+        <Card className="p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">내역 목록</h2>
+            <Badge color="indigo">{items.length}건</Badge>
+          </div>
+
+          {error && <div className="mb-3"><Alert>{error}</Alert></div>}
+
+          {loading ? (
+            <div className="flex items-center justify-center py-10"><Spinner /></div>
+          ) : items.length === 0 ? (
+            <EmptyState title="등록된 내역이 없습니다" description="위 양식에서 첫 내역을 추가해 보세요." />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {items.map((t) => (
+                <li key={t.id} className="fade-in py-3 flex items-center gap-3">
+                  <div className="shrink-0 w-1 h-10 rounded-full"
+                    style={{ background: t.type === 'income' ? '#10b981' : '#f43f5e' }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge color={t.type === 'income' ? 'emerald' : 'rose'}>
+                        {t.type === 'income' ? '수입' : '지출'}
+                      </Badge>
+                      <span className="text-sm font-medium text-slate-800 truncate">{t.category}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5 truncate">
+                      {formatDate(t.date)}{t.memo ? ` · ${t.memo}` : ''}
+                    </div>
+                  </div>
+                  <div className={`shrink-0 text-sm font-semibold tabular-nums ${
+                    t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    {t.type === 'income' ? '+' : '-'}{formatWon(t.amount)}
+                  </div>
+                  <Button variant="danger" size="sm" onClick={() => onDelete(t.id)}>삭제</Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      );
+    }
+
+    // ===== Summary =====
+    function SummarySection({ summary }) {
+      const render = (title, obj, color) => {
+        const entries = Object.entries(obj || {}).sort((a, b) => b[1] - a[1]);
+        const total = entries.reduce((s, [, v]) => s + Number(v), 0);
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+              <span className={`text-sm font-semibold tabular-nums ${color}`}>{formatWon(total)}</span>
+            </div>
+            {entries.length === 0 ? (
+              <p className="text-xs text-slate-400">데이터 없음</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {entries.map(([cat, amt]) => {
+                  const pct = total > 0 ? Math.round((amt / total) * 100) : 0;
+                  return (
+                    <li key={cat}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-slate-700 font-medium">{cat}</span>
+                        <span className="tabular-nums text-slate-600">{formatWon(amt)} · {pct}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${color.replace('text-', 'bg-')}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <Card className="p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">카테고리별 합계</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {render('수입', summary.income, 'text-emerald-600')}
+            {render('지출', summary.expense, 'text-rose-600')}
+          </div>
+        </Card>
+      );
+    }
+
+    // ===== Monthly Report + Budget =====
+    const BUDGET_STORAGE_KEY = 'account_book_monthly_budget';
+
+    function MonthlyReport({ items }) {
+      const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+      const [budget, setBudget] = useState(() => Number(localStorage.getItem(BUDGET_STORAGE_KEY)) || 0);
+
+      const handleBudgetChange = (v) => {
+        const n = Number(v) || 0;
+        setBudget(n);
+        try { localStorage.setItem(BUDGET_STORAGE_KEY, String(n)); } catch (e) {}
+      };
+
+      const report = useMemo(() => {
+        const filtered = items.filter((t) => t.date && t.date.startsWith(month));
+        let income = 0, expense = 0;
+        const expenseByCat = {};
+        for (const t of filtered) {
+          const amt = Number(t.amount) || 0;
+          if (t.type === 'income') income += amt;
+          else {
+            expense += amt;
+            const key = t.category || '미분류';
+            expenseByCat[key] = (expenseByCat[key] || 0) + amt;
+          }
+        }
+        const topCats = Object.entries(expenseByCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        return { count: filtered.length, income, expense, net: income - expense, topCats };
+      }, [items, month]);
+
+      const pct = budget > 0 ? Math.min(100, Math.round((report.expense / budget) * 100)) : 0;
+      const over = budget > 0 && report.expense > budget;
+      const barColor = over ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+      const pctTextColor = over ? 'text-rose-600' : pct >= 80 ? 'text-amber-600' : 'text-emerald-600';
+
+      return (
+        <Card className="p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">월별 리포트</h2>
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="p-3 rounded-xl bg-emerald-50">
+              <p className="text-xs text-emerald-700">수입</p>
+              <p className="text-sm font-semibold text-emerald-700 tabular-nums mt-0.5">{formatWon(report.income)}</p>
+            </div>
+            <div className="p-3 rounded-xl bg-rose-50">
+              <p className="text-xs text-rose-700">지출</p>
+              <p className="text-sm font-semibold text-rose-700 tabular-nums mt-0.5">{formatWon(report.expense)}</p>
+            </div>
+            <div className={`p-3 rounded-xl ${report.net >= 0 ? 'bg-slate-100' : 'bg-rose-50'}`}>
+              <p className={`text-xs ${report.net >= 0 ? 'text-slate-700' : 'text-rose-700'}`}>잔액</p>
+              <p className={`text-sm font-semibold tabular-nums mt-0.5 ${report.net >= 0 ? 'text-slate-800' : 'text-rose-700'}`}>
+                {formatWon(report.net)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <label className="text-sm font-medium text-slate-700 whitespace-nowrap">예산 대비 지출</label>
+              <div className="flex items-center gap-1.5">
+                <input type="number" min="0" step="10000" placeholder="월 예산 입력"
+                  value={budget || ''} onChange={(e) => handleBudgetChange(e.target.value)}
+                  className="w-32 px-2 py-1 border border-slate-300 rounded-md text-xs text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <span className="text-xs text-slate-500">원</span>
+              </div>
+            </div>
+            {budget > 0 ? (
+              <>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1.5">
+                  <span className={over ? 'text-rose-600 font-medium tabular-nums' : 'text-slate-600 tabular-nums'}>
+                    {formatWon(report.expense)} / {formatWon(budget)}
+                  </span>
+                  <span className={`tabular-nums font-semibold ${pctTextColor}`}>
+                    {pct}%{over ? ' · 초과' : ''}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-slate-400">월 예산을 입력하면 사용률이 표시됩니다.</p>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800 mb-2">이 달 지출 TOP 3</h3>
+            {report.topCats.length === 0 ? (
+              <p className="text-xs text-slate-400">이 달에 기록된 지출이 없습니다.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {report.topCats.map(([cat, amt], i) => (
+                  <li key={cat} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold">{i + 1}</span>
+                      <span className="font-medium text-slate-700">{cat}</span>
+                    </span>
+                    <span className="tabular-nums text-rose-600 font-medium">{formatWon(amt)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      );
+    }
+
+    // ===== App =====
+    function App() {
+      const [items, setItems] = useState([]);
+      const [summary, setSummary] = useState({ income: {}, expense: {} });
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+
+      const loadAll = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const [list, sum] = await Promise.all([
+            apiRequest('/transactions'),
+            apiRequest('/transactions/summary'),
+          ]);
+          setItems(Array.isArray(list) ? list : []);
+          setSummary(sum || { income: {}, expense: {} });
+        } catch (e) {
+          setError(e.message);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      const handleDelete = async (id) => {
+        if (!window.confirm('이 내역을 삭제하시겠어요?')) return;
+        try {
+          await apiRequest(`/transactions/${id}`, { method: 'DELETE' });
+          await loadAll();
+        } catch (e) {
+          setError(e.message);
+        }
+      };
+
+      const totals = useMemo(() => {
+        const income = Object.values(summary.income || {}).reduce((s, v) => s + Number(v), 0);
+        const expense = Object.values(summary.expense || {}).reduce((s, v) => s + Number(v), 0);
+        return { income, expense, net: income - expense };
+      }, [summary]);
+
+      return (
+        <div className="min-h-screen">
+          <header className="bg-white border-b border-slate-200">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8v8m0 0v2m0-10V6m9 6a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h1 className="text-xl font-bold text-slate-900">가계부</h1>
+                <p className="text-xs text-slate-500">수입·지출을 기록하고 카테고리별로 확인하세요.</p>
+              </div>
+              <div className="hidden sm:flex gap-4 text-right">
+                <div>
+                  <p className="text-xs text-slate-500">수입</p>
+                  <p className="text-sm font-semibold text-emerald-600 tabular-nums">{formatWon(totals.income)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">지출</p>
+                  <p className="text-sm font-semibold text-rose-600 tabular-nums">{formatWon(totals.expense)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">잔액</p>
+                  <p className={`text-sm font-semibold tabular-nums ${totals.net >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                    {formatWon(totals.net)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div className="flex flex-col gap-6">
+              <TransactionForm onCreated={loadAll} />
+              <MonthlyReport items={items} />
+              <SummarySection summary={summary} />
+            </div>
+            <TransactionList items={items} loading={loading} error={error} onDelete={handleDelete} />
+          </main>
+
+          <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-center text-xs text-slate-400">
+            Account Book · Express + Supabase + React
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
