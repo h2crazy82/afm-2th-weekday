@@ -1,0 +1,119 @@
+{
+  "version": "3.0",
+  "lastUpdated": "2026-04-20T18:03:22.947Z",
+  "activeFeatures": [
+    "context_agent",
+    "ai_dashboard_boss"
+  ],
+  "primaryFeature": "context_agent",
+  "features": {
+    "context_agent": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-20T17:10:25.890Z",
+        "lastUpdated": "2026-04-20T17:13:40.707Z"
+      },
+      "lastFile": "/Users/hoon/Downloads/afm-2th-weekday-2/week-5/context_agent/server.js"
+    },
+    "ai_dashboard_boss": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-04-20T17:27:01.675Z",
+        "lastUpdated": "2026-04-20T18:03:22.946Z"
+      },
+      "lastFile": "/Users/hoon/Downloads/afm-2th-weekday-2/week-5/ai_dashboard_boss/server.js"
+    }
+  },
+  "pipeline": {
+    "currentPhase": 1,
+    "level": "Dynamic",
+    "phaseHistory": []
+  },
+  "session": {
+    "startedAt": "2026-04-20T16:25:57.023Z",
+    "onboardingCompleted": false,
+    "lastActivity": "2026-04-20T18:03:22.947Z"
+  },
+  "history": [
+    {
+      "timestamp": "2026-04-20T17:10:25.892Z",
+      "feature": "context_agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T17:12:27.412Z",
+      "feature": "context_agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T17:12:36.725Z",
+      "feature": "context_agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T17:13:40.708Z",
+      "feature": "context_agent",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T17:27:01.676Z",
+      "feature": "ai_dashboard_boss",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T17:59:10.592Z",
+      "feature": "ai_dashboard_boss",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T18:00:04.821Z",
+      "feature": "ai_dashboard_boss",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T18:03:04.761Z",
+      "feature": "ai_dashboard_boss",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-04-20T18:03:22.947Z",
+      "feature": "ai_dashboard_boss",
+      "phase": "do",
+      "action": "updated"
+    }
+  ],
+  "stateMachine": {
+    "defaultWorkflow": "default",
+    "activeWorkflows": {},
+    "totalTransitions": 0
+  },
+  "automation": {
+    "globalLevel": 2,
+    "trustScore": 40,
+    "pendingApprovals": 0,
+    "lastGateResult": null
+  },
+  "team": {
+    "enabled": true,
+    "stateFile": ".bkit/runtime/agent-state.json",
+    "eventsFile": ".bkit/runtime/agent-events.jsonl"
+  }
+}

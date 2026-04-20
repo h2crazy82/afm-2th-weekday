@@ -1,0 +1,8 @@
+{
+  "detectedAt": "2026-04-20T16:25:57.017Z",
+  "toplevel": "/Users/hoon/Downloads/afm-2th-weekday-2",
+  "gitDir": "/Users/hoon/Downloads/afm-2th-weekday-2/.git",
+  "gitCommonDir": "/Users/hoon/.git",
+  "issue": "https://github.com/anthropics/claude-code/issues/46808",
+  "message": "git worktree detected — Claude Code hooks may not fire (issue #46808). Run bkit from the primary repository if hook-driven automation is required."
+}

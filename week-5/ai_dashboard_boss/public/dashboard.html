@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI Dashboard</title>
+<style>
+  :root { color-scheme: light; --accent: #0b6bcb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Pretendard', system-ui, sans-serif;
+         background: #f4f6fa; color: #1a1a1a; line-height: 1.55; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
+
+  header { display: flex; align-items: center; justify-content: space-between;
+           margin-bottom: 24px; padding: 16px 20px; background: #fff; border-radius: 12px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+  header .title { font-size: 18px; font-weight: 700; }
+  header .title b { color: var(--accent); }
+  header .user { font-size: 13px; color: #666; margin-right: 14px; }
+  header button { padding: 8px 14px; border: 1px solid #ddd; border-radius: 8px;
+                  background: #fff; cursor: pointer; font-size: 13px; }
+  header button:hover { background: #f0f0f0; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: #fff; border-radius: 12px; padding: 20px 22px;
+          box-shadow: 0 1px 4px rgba(0,0,0,.04); min-height: 220px; }
+  .card.briefing { background: linear-gradient(135deg, #0b6bcb 0%, #0891b2 100%);
+                   color: #fff; min-height: 260px; }
+  .card .badge { display: inline-block; padding: 3px 10px; border-radius: 999px;
+                 font-size: 11px; font-weight: 700; letter-spacing: .3px; margin-bottom: 8px; }
+  .badge.mcp { background: #fef3c7; color: #92400e; }
+  .badge.db  { background: #dbeafe; color: #1e40af; }
+  .badge.ai  { background: rgba(255,255,255,.25); color: #fff; }
+  .card h2 { margin: 0 0 14px; font-size: 15px; font-weight: 700; }
+  .card.briefing h2 { color: #fff; }
+
+  .tasks { display: flex; flex-direction: column; gap: 10px; }
+  .task { display: flex; gap: 8px; align-items: flex-start; padding: 9px 0;
+          border-bottom: 1px dashed #eee; }
+  .task:last-child { border-bottom: 0; }
+  .task .pr { flex-shrink: 0; width: 50px; padding: 2px 7px; border-radius: 4px;
+              font-size: 10px; font-weight: 700; text-align: center; margin-top: 2px; }
+  .pr.긴급  { background: #fee2e2; color: #b91c1c; }
+  .pr.높음  { background: #ffedd5; color: #c2410c; }
+  .pr.보통  { background: #fef9c3; color: #854d0e; }
+  .pr.낮음  { background: #dcfce7; color: #166534; }
+  .pr.null  { background: #f4f4f5; color: #71717a; }
+  .task .body { flex: 1; }
+  .task .body .t { font-size: 14px; font-weight: 500; }
+  .task .body .m { font-size: 11px; color: #777; margin-top: 2px; }
+  .task .body .m .st { display: inline-block; padding: 1px 7px; border-radius: 3px;
+                       background: #f4f4f5; margin-right: 4px; font-weight: 600; }
+
+  .logs { display: flex; flex-direction: column; gap: 8px; }
+  .logrow { display: flex; align-items: center; gap: 12px; }
+  .logrow .name { flex: 0 0 110px; font-size: 13px; }
+  .logrow .bar  { flex: 1; height: 18px; background: #f4f4f5; border-radius: 4px; overflow: hidden; }
+  .logrow .bar span { display: block; height: 100%; background: var(--accent); }
+  .logrow .hrs  { flex: 0 0 60px; text-align: right; font-size: 13px; font-weight: 600; color: #333; }
+  .logs .total { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee;
+                 font-size: 12px; color: #666; }
+
+  .briefing .text { font-size: 15px; line-height: 1.7; white-space: pre-wrap; margin-top: 6px; }
+  .briefing .sources { margin-top: 14px; font-size: 11px; opacity: .8;
+                       border-top: 1px solid rgba(255,255,255,.3); padding-top: 10px; }
+
+  .empty { color: #999; font-size: 13px; padding: 20px 0; text-align: center; }
+  .err { color: #c00; font-size: 13px; }
+  .loading { color: #888; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">AI <b>Dashboard</b> — 박훈의 Solo OS</div>
+    <div style="display:flex;align-items:center">
+      <span class="user" id="user">—</span>
+      <button id="logout">로그아웃</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <span class="badge mcp">📡 MCP · Notion</span>
+      <h2>프로젝트 보드 (진행·기획·아이디어)</h2>
+      <div id="tasks" class="loading">불러오는 중...</div>
+    </section>
+
+    <section class="card briefing">
+      <span class="badge ai">🧠 AI · OpenAI</span>
+      <h2>오늘의 브리핑</h2>
+      <div id="briefing" class="loading">종합 중...</div>
+      <div class="sources" id="sources"></div>
+    </section>
+
+    <section class="card">
+      <span class="badge db">🗄️ DB · Supabase</span>
+      <h2>최근 7일 사업별 시간 배분</h2>
+      <div id="logs" class="loading">불러오는 중...</div>
+    </section>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('access_token');
+if (!token) location.href = '/';
+
+const auth = { headers: { authorization: `Bearer ${token}` } };
+
+async function api(path) {
+  const res = await fetch(path, auth);
+  if (res.status === 401) { localStorage.removeItem('access_token'); location.href = '/'; return; }
+  return res.json();
+}
+
+document.getElementById('logout').onclick = () => {
+  localStorage.removeItem('access_token');
+  location.href = '/';
+};
+
+// user
+api('/api/auth/me').then((d) => {
+  if (d?.user?.email) document.getElementById('user').textContent = d.user.email;
+});
+
+// tasks
+api('/api/notion/tasks').then((d) => {
+  const $ = document.getElementById('tasks');
+  if (!d || d.error) { $.innerHTML = `<div class="err">${d?.error || '오류'}</div>`; return; }
+  if (!d.tasks.length) { $.innerHTML = '<div class="empty">진행 중인 프로젝트가 없습니다.</div>'; return; }
+  $.className = 'tasks';
+  $.innerHTML = d.tasks.map((t) => `
+    <div class="task">
+      <div class="pr ${t.priority || 'null'}">${t.priority || '—'}</div>
+      <div class="body">
+        <div class="t">${t.title}</div>
+        <div class="m">
+          <span class="st">${t.status || '-'}</span>
+          ${t.category ? `· ${t.category}` : ''}
+          ${t.due ? `· 마감 ${t.due}` : ''}
+          ${t.progress != null ? `· ${t.progress}%` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+});
+
+// logs
+api('/api/work-logs').then((d) => {
+  const $ = document.getElementById('logs');
+  if (!d || d.error) { $.innerHTML = `<div class="err">${d?.error || '오류'}</div>`; return; }
+  if (!d.summary.length) { $.innerHTML = '<div class="empty">최근 7일 로그가 없습니다.</div>'; return; }
+  const max = Math.max(...d.summary.map((s) => s.hours));
+  const total = d.summary.reduce((s, r) => s + r.hours, 0);
+  $.className = 'logs';
+  $.innerHTML = d.summary.map((s) => `
+    <div class="logrow">
+      <div class="name">${s.business}</div>
+      <div class="bar"><span style="width:${(s.hours / max * 100).toFixed(0)}%"></span></div>
+      <div class="hrs">${s.hours}h</div>
+    </div>
+  `).join('') + `<div class="total">총 ${total.toFixed(1)}h · ${d.rows.length}건</div>`;
+});
+
+// briefing
+api('/api/briefing').then((d) => {
+  const $b = document.getElementById('briefing');
+  const $s = document.getElementById('sources');
+  if (!d || d.error) { $b.innerHTML = `<div class="err">${d?.error || '오류'}</div>`; return; }
+  $b.className = 'text';
+  $b.textContent = d.briefing;
+  const summary = (d.sources.work_logs_summary || []).map((x) => `${x.business} ${x.hours}h`).join(' · ');
+  $s.textContent = `출처: Notion 프로젝트 ${d.sources.notion_tasks}건 / work_logs ${summary}`;
+});
+</script>
+</body>
+</html>
