@@ -6,4 +6,5 @@
 - 테이블: `products` (공개) + `cart` (user별)
 - 참고: `community_app/` Auth 코드 재활용
 
-배포 url https://shopping-mall-gilt.vercel.app
+- 배포 URL: https://shopping-mall-gilt.vercel.app
+- GitHub: https://github.com/h2crazy82/afm-2th-weekday
