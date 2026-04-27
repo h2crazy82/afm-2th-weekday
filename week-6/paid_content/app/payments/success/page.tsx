@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { confirmTossPayment } from "@/lib/toss";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { generateCustomPrompt } from "@/lib/claude";
 import { won, formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -13,24 +15,21 @@ export default async function PaymentsSuccessPage({
     orderId?: string;
     amount?: string;
     contentId?: string;
+    customId?: string;
   }>;
 }) {
   const sp = await searchParams;
-  const { paymentKey, orderId, amount, contentId } = sp;
+  const { paymentKey, orderId, amount, contentId, customId } = sp;
 
-  if (!paymentKey || !orderId || !amount || !contentId) {
-    return (
-      <div className="card text-center text-red-600">결제 파라미터가 누락되었습니다.</div>
-    );
+  if (!paymentKey || !orderId || !amount) {
+    return <div className="card text-center text-red-600">결제 파라미터가 누락되었습니다.</div>;
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return <div className="card text-red-600">로그인 정보가 없습니다.</div>;
-  }
+  if (!user) return <div className="card text-red-600">로그인 정보가 없습니다.</div>;
 
-  // 1) 토스 승인
+  // 1) 토스 결제 승인 (공통)
   let tossResult;
   try {
     tossResult = await confirmTossPayment({
@@ -47,12 +46,80 @@ export default async function PaymentsSuccessPage({
     );
   }
 
-  // 2) DB에 purchases UPSERT (pending → paid)
   const admin = createAdminClient();
+
+  // ─────────────────────────────────────────────
+  // 분기 A: 프리미엄 맞춤 프롬프트 생성 (customId)
+  // ─────────────────────────────────────────────
+  if (customId) {
+    const { data: gen } = await admin
+      .from("custom_generations")
+      .select("*")
+      .eq("id", Number(customId))
+      .eq("toss_order_id", orderId)
+      .maybeSingle();
+
+    if (!gen) {
+      return <div className="card text-red-600">draft 생성 row를 찾을 수 없습니다.</div>;
+    }
+
+    // 이미 생성 완료되어 있으면 그대로 이동
+    if (gen.status === "generated") {
+      redirect(`/custom/${gen.id}`);
+    }
+
+    // status를 paid로 갱신
+    await admin
+      .from("custom_generations")
+      .update({
+        status: "paid",
+        toss_payment_key: paymentKey,
+        paid_at: tossResult.approvedAt,
+      })
+      .eq("id", gen.id);
+
+    // Claude API 호출 (실패해도 결제는 유지 — generation row에 에러 기록)
+    try {
+      const generated = await generateCustomPrompt({
+        category: gen.category,
+        companyName: gen.company_name,
+        industry: gen.industry,
+        employeeCount: gen.employee_count,
+        tone: gen.tone,
+        customRequest: gen.custom_request,
+      });
+
+      await admin
+        .from("custom_generations")
+        .update({
+          generated_body: generated,
+          generated_at: new Date().toISOString(),
+          status: "generated",
+        })
+        .eq("id", gen.id);
+    } catch (e: any) {
+      await admin
+        .from("custom_generations")
+        .update({
+          status: "failed",
+          error_message: String(e.message || e).slice(0, 500),
+        })
+        .eq("id", gen.id);
+    }
+
+    redirect(`/custom/${gen.id}`);
+  }
+
+  // ─────────────────────────────────────────────
+  // 분기 B: 기존 콘텐츠 단건 구매 (contentId)
+  // ─────────────────────────────────────────────
+  if (!contentId) {
+    return <div className="card text-red-600">contentId 또는 customId가 필요합니다.</div>;
+  }
 
   const { data: existing } = await admin
     .from("purchases")
-    .select("id, paid_at")
+    .select("id")
     .eq("toss_order_id", orderId)
     .maybeSingle();
 
@@ -65,7 +132,6 @@ export default async function PaymentsSuccessPage({
       })
       .eq("id", existing.id);
   } else {
-    // draft가 안 만들어진 케이스 — fallback
     await admin.from("purchases").insert({
       user_id: user.id,
       content_id: Number(contentId),
@@ -76,7 +142,6 @@ export default async function PaymentsSuccessPage({
     });
   }
 
-  // 3) 콘텐츠 정보
   const { data: content } = await admin
     .from("contents")
     .select("title")

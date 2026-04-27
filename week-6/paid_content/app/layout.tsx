@@ -20,6 +20,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <nav className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
             <Link href="/" className="text-lg font-bold tracking-tight">📚 프롬프트 마켓</Link>
             <div className="flex items-center gap-3 text-sm">
+              <Link
+                href="/custom"
+                className="hidden sm:inline-flex items-center gap-1 text-amber-700 hover:text-amber-800 font-medium"
+              >
+                ✨ <span>프리미엄</span>
+              </Link>
               {user ? (
                 <>
                   <Link href="/mypage" className="text-zinc-700 hover:text-zinc-900">내 구매 이력</Link>

@@ -31,6 +31,31 @@ export default async function HomePage() {
         </p>
       </div>
 
+      {/* 프리미엄 카드 */}
+      <Link
+        href="/custom"
+        className="block mb-6 rounded-xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
+              ✨ PREMIUM
+            </div>
+            <h2 className="mt-2 text-lg font-bold text-amber-900">
+              5개 템플릿이 부족해요? AI가 만들어드립니다.
+            </h2>
+            <p className="mt-1 text-sm text-amber-800">
+              회사·업종·요구사항을 입력하면 Claude AI가 그 자리에서 새 프롬프트를 생성합니다.
+              결제 후 5~10초 내 자동 생성, 영구 보관.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-2xl font-bold text-amber-700">₩39,000</p>
+            <p className="text-xs text-amber-600">1회 생성</p>
+          </div>
+        </div>
+      </Link>
+
       <div className="space-y-3">
         {(contents ?? []).map((c) => {
           const purchased = purchasedIds.has(c.id);

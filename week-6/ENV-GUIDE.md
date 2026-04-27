@@ -107,6 +107,20 @@ $EDITOR .env
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` (Q3와 동일 값)
 - [ ] `NEXT_PUBLIC_TOSS_CLIENT_KEY` (Q3와 동일 값)
 - [ ] `TOSS_SECRET_KEY` (Q3와 동일 값)
+- [ ] `ANTHROPIC_API_KEY` (선택 — 프리미엄 AI 생성 기능. 비워두면 /custom 라우트가 "AI 모듈 셋업 중" 안내만 노출)
+
+#### `ANTHROPIC_API_KEY` 발급 (선택, Q4 프리미엄용)
+
+`/custom` 라우트의 AI 맞춤 프롬프트 생성 기능에 필요. 비우면 결제 차단됨 (서비스는 정상).
+
+**가져오는 곳**:
+1. https://console.anthropic.com/ 가입/로그인
+2. 좌측 **API Keys** → **Create Key**
+3. 이름 "paid-content-prod" 입력 → 생성된 `sk-ant-...` 복사
+4. **결제 등록 필수** (https://console.anthropic.com/settings/plans) — 최소 $5 충전 후 사용 가능
+5. Q4 `.env`의 `ANTHROPIC_API_KEY=`에 붙여넣기
+
+**모델**: 기본값으로 `claude-haiku-4-5` 사용 (1회 생성당 약 ₩30~80 비용 추정).
 
 ---
 
