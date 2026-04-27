@@ -7,7 +7,7 @@
 - 결제 모델: 단건 결제 (영구 열람)
 - 잠금 UX: 미리보기 앞 3줄 + "결제하고 열람" 버튼
 - GitHub: https://github.com/h2crazy82/afm-2th-weekday
-- 배포 URL: (Vercel 배포 후 추가)
+- 배포 URL: https://paid-content.vercel.app
 
 ## 스택
 

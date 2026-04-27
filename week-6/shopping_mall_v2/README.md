@@ -5,7 +5,7 @@
 - 원본: https://www.notion.so/9b3362eb01348259a41301930c066a13
 - 참고 자산: `week-5/shopping_mall/` (스키마 + UX 패턴), Express → Next.js App Router로 재작성
 - GitHub: https://github.com/h2crazy82/afm-2th-weekday
-- 배포 URL: (Vercel 배포 후 추가)
+- 배포 URL: https://shopping-mall-v2.vercel.app
 
 ## 스택
 

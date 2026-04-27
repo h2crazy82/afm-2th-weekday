@@ -136,7 +136,7 @@ GitHub: https://github.com/h2crazy82/afm-2th-weekday/tree/main/week-6/competitor
 - Resend로 주문 확인 이메일 자동 발송
 - 마이페이지 + 주문 상세
 
-🚀 배포: {{ Q3 Vercel URL }}
+🚀 배포: https://shopping-mall-v2.vercel.app
 GitHub: https://github.com/h2crazy82/afm-2th-weekday/tree/main/week-6/shopping_mall_v2
 ```
 
@@ -155,7 +155,7 @@ GitHub: https://github.com/h2crazy82/afm-2th-weekday/tree/main/week-6/shopping_m
 4. 라라에듀 PM 6페이지 제안서 (₩19,000)
 5. NCS 평가도구 5문항 (₩14,000)
 
-🚀 배포: {{ Q4 Vercel URL }}
+🚀 배포: https://paid-content.vercel.app
 GitHub: https://github.com/h2crazy82/afm-2th-weekday/tree/main/week-6/paid_content
 ```
 
