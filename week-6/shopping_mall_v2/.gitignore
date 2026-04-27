@@ -1,8 +1,8 @@
+node_modules/
+.next/
 .env
 .env.local
-node_modules/
-.DS_Store
-.next/
 .vercel
-.bkit/
+*.log
+.DS_Store
 next-env.d.ts
