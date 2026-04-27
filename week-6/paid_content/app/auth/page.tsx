@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function AuthPage() {
-  const router = useRouter();
+function AuthInner() {
   const sp = useSearchParams();
   const next = sp.get("next") || "/";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -25,8 +24,8 @@ export default function AuthPage() {
         : await supabase.auth.signUp({ email, password: pw });
     setBusy(false);
     if (error) return setErr(error.message);
-    router.refresh();
-    router.push(next);
+    // 하드 리로드 — 쿠키 + 서버 컴포넌트 한 번에 새로 가져옴
+    window.location.href = next;
   }
 
   return (
@@ -58,5 +57,13 @@ export default function AuthPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="card text-zinc-500">불러오는 중...</div>}>
+      <AuthInner />
+    </Suspense>
   );
 }

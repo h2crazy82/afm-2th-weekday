@@ -1,17 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export function SignOutButton() {
-  const router = useRouter();
   return (
     <button
       onClick={async () => {
         const supabase = createClient();
         await supabase.auth.signOut();
-        router.refresh();
-        router.push("/");
+        window.location.href = "/";
       }}
       className="text-zinc-500 text-xs hover:text-zinc-900 underline"
     >

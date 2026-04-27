@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AuthPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -27,8 +25,8 @@ export default function AuthPage() {
       setErr(error.message);
       return;
     }
-    router.refresh();
-    router.push("/");
+    // 하드 리로드 — 쿠키 + 서버 컴포넌트 한 번에 새로 가져옴
+    window.location.href = "/";
   }
 
   return (
